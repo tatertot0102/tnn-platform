@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
+import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import Spinner from '../components/ui/Spinner'
 
@@ -13,6 +14,7 @@ export default function Login() {
   const [error, setError]       = useState('')
   const [loading, setLoading]   = useState(false)
   const [success, setSuccess]   = useState('')
+  const [sendingReset, setSendingReset] = useState(false)
 
   async function handleSubmit(e) {
     e.preventDefault()
@@ -32,6 +34,31 @@ export default function Login() {
     setLoading(false)
   }
 
+  async function handleForgotPassword() {
+    setError('')
+    setSuccess('')
+
+    if (!email.trim()) {
+      setError('Enter your email first, then click Forgot Password.')
+      return
+    }
+
+    setSendingReset(true)
+
+    const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+      redirectTo: 'https://tatertot0102.github.io/tnn-platform/reset-password',
+    })
+
+    setSendingReset(false)
+
+    if (error) {
+      setError(error.message)
+      return
+    }
+
+    setSuccess('Password reset email sent. Check your inbox and follow the link to reset your password.')
+  }
+
   return (
     <div className="min-h-screen bg-gray-950 flex items-center justify-center p-4">
       <div className="w-full max-w-sm">
@@ -41,7 +68,7 @@ export default function Login() {
             <span className="text-white font-black text-2xl">T</span>
           </div>
           <h1 className="text-2xl font-bold text-white">TNN Platform</h1>
-          <p className="text-gray-400 text-sm mt-1">The News Network</p>
+          <p className="text-gray-400 text-sm mt-1">Tech News Network</p>
         </div>
 
         <div className="card p-6">
@@ -94,7 +121,19 @@ export default function Login() {
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-400 mb-1.5">Password</label>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block text-xs font-medium text-gray-400">Password</label>
+                  {mode === 'login' && (
+                    <button
+                      type="button"
+                      onClick={handleForgotPassword}
+                      disabled={sendingReset}
+                      className="text-xs text-brand-400 hover:underline disabled:opacity-50"
+                    >
+                      {sendingReset ? 'Sending...' : 'Forgot Password?'}
+                    </button>
+                  )}
+                </div>
                 <input
                   className="input"
                   type="password"
@@ -121,7 +160,7 @@ export default function Login() {
         </div>
 
         <p className="text-center text-gray-600 text-xs mt-4">
-          TNN · {new Date().getFullYear()}
+          Managed by Zane Wolf • Internal use only!
         </p>
       </div>
     </div>

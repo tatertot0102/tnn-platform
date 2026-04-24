@@ -12,7 +12,7 @@ function StatCard({ icon: Icon, label, value, color = 'text-brand-400' }) {
   return (
     <div className="card p-5">
       <div className="flex items-center gap-3">
-        <div className={`${color}`}><Icon size={20} /></div>
+        <div className={color}><Icon size={20} /></div>
         <div>
           <p className="text-2xl font-bold text-white">{value}</p>
           <p className="text-gray-400 text-xs mt-0.5">{label}</p>
@@ -24,54 +24,59 @@ function StatCard({ icon: Icon, label, value, color = 'text-brand-400' }) {
 
 export default function Dashboard() {
   const { profile, isExec } = useAuth()
-  const [segments, setSegments]   = useState([])
-  const [tasks, setTasks]         = useState([])
-  const [loading, setLoading]     = useState(true)
+  const [segments, setSegments] = useState([])
+  const [tasks, setTasks]       = useState([])
+  const [loading, setLoading]   = useState(true)
 
-  useEffect(() => {
-    fetchData()
-  }, [profile])
+  useEffect(() => { fetchData() }, [profile])
 
   async function fetchData() {
     if (!profile) return
     setLoading(true)
 
-    // Fetch segments the user is on (via segment_roles) or all if exec
-    let segQuery = supabase
-      .from('segments')
-      .select('*, segment_roles(user_id, role_type), profiles:created_by(full_name)')
-      .order('due_date', { ascending: true })
-      .limit(20)
+    if (isExec) {
+      // Execs see everything
+      const [{ data: segs }, { data: taskData }] = await Promise.all([
+        supabase.from('segments').select('*, segment_roles(user_id, role_type)')
+          .order('due_date', { ascending: true }).limit(20),
+        supabase.from('tasks').select('*').neq('status', 'done')
+          .order('due_date', { ascending: true }).limit(10),
+      ])
+      setSegments(segs ?? [])
+      setTasks(taskData ?? [])
+    } else {
+      // Members: only segments they have a role on, only tasks assigned to them
+      const { data: roleRows } = await supabase
+        .from('segment_roles')
+        .select('segment_id')
+        .eq('user_id', profile.id)
 
-    if (!isExec) {
-      segQuery = segQuery.eq('segment_roles.user_id', profile.id)
+      const segIds = [...new Set((roleRows ?? []).map(r => r.segment_id))]
+
+      const [segsResult, tasksResult] = await Promise.all([
+        segIds.length > 0
+          ? supabase.from('segments').select('*, segment_roles(user_id, role_type)')
+              .in('id', segIds).order('due_date', { ascending: true })
+          : Promise.resolve({ data: [] }),
+        supabase.from('tasks').select('*')
+          .contains('assignee_ids', [profile.id])
+          .neq('status', 'done')
+          .order('due_date', { ascending: true }).limit(10),
+      ])
+
+      setSegments(segsResult.data ?? [])
+      setTasks(tasksResult.data ?? [])
     }
 
-    const [{ data: segs }, { data: taskData }] = await Promise.all([
-      segQuery,
-      supabase
-        .from('tasks')
-        .select('*')
-        .contains('assignee_ids', [profile.id])
-        .neq('status', 'done')
-        .order('due_date', { ascending: true })
-        .limit(10),
-    ])
-
-    setSegments(segs ?? [])
-    setTasks(taskData ?? [])
     setLoading(false)
   }
 
-  const today     = new Date()
-  const soon      = addDays(today, 7)
-  const overdue   = segments.filter(s => s.due_date && isBefore(new Date(s.due_date), today) && s.status !== 'done')
-  const dueSoon   = segments.filter(s => s.due_date && isAfter(new Date(s.due_date), today) && isBefore(new Date(s.due_date), soon) && s.status !== 'done')
-  const inProgress= segments.filter(s => s.status === 'in-progress')
+  const today   = new Date()
+  const soon    = addDays(today, 7)
+  const overdue = segments.filter(s => s.due_date && isBefore(new Date(s.due_date), today) && s.status !== 'done')
+  const dueSoon = segments.filter(s => s.due_date && isAfter(new Date(s.due_date), today) && isBefore(new Date(s.due_date), soon) && s.status !== 'done')
 
-  if (loading) return (
-    <div className="flex items-center justify-center h-64"><Spinner size={8} /></div>
-  )
+  if (loading) return <div className="flex items-center justify-center h-64"><Spinner size={8} /></div>
 
   return (
     <div>
@@ -79,28 +84,21 @@ export default function Dashboard() {
         title={`Hey, ${profile?.full_name?.split(' ')[0] ?? 'there'} 👋`}
         subtitle={isExec ? "Here's the TNN overview" : 'Your assignments and tasks'}
       />
-
-      {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-        <StatCard icon={Film}          label="My Segments"    value={segments.length}  color="text-brand-400" />
-        <StatCard icon={CheckSquare}   label="Open Tasks"     value={tasks.length}     color="text-teal-400" />
-        <StatCard icon={AlertTriangle} label="Overdue"        value={overdue.length}   color="text-red-400" />
-        <StatCard icon={Clock}         label="Due This Week"  value={dueSoon.length}   color="text-yellow-400" />
+        <StatCard icon={Film}          label={isExec ? 'Total Segments' : 'My Segments'} value={segments.length} color="text-brand-400" />
+        <StatCard icon={CheckSquare}   label="Open Tasks"    value={tasks.length}    color="text-teal-400" />
+        <StatCard icon={AlertTriangle} label="Overdue"       value={overdue.length}  color="text-red-400" />
+        <StatCard icon={Clock}         label="Due This Week" value={dueSoon.length}  color="text-yellow-400" />
       </div>
 
       <div className="grid md:grid-cols-2 gap-6">
-        {/* Segments */}
         <div>
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-sm font-semibold text-gray-300">
-              {isExec ? 'All Segments' : 'My Segments'}
-            </h2>
+            <h2 className="text-sm font-semibold text-gray-300">{isExec ? 'All Segments' : 'My Segments'}</h2>
             <Link to="/segments" className="text-xs text-brand-400 hover:underline">View all</Link>
           </div>
           <div className="space-y-2">
-            {segments.length === 0 && (
-              <p className="text-gray-500 text-sm">No segments yet.</p>
-            )}
+            {segments.length === 0 && <p className="text-gray-500 text-sm">No segments yet.</p>}
             {segments.slice(0, 8).map(seg => (
               <Link key={seg.id} to={`/segments/${seg.id}`}>
                 <div className="card p-4 hover:border-gray-700 transition-colors cursor-pointer">
@@ -126,16 +124,13 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Tasks */}
         <div>
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-sm font-semibold text-gray-300">My Open Tasks</h2>
             <Link to="/tasks" className="text-xs text-brand-400 hover:underline">View all</Link>
           </div>
           <div className="space-y-2">
-            {tasks.length === 0 && (
-              <p className="text-gray-500 text-sm">No open tasks 🎉</p>
-            )}
+            {tasks.length === 0 && <p className="text-gray-500 text-sm">No open tasks 🎉</p>}
             {tasks.map(task => (
               <Link key={task.id} to="/tasks">
                 <div className="card p-4 hover:border-gray-700 transition-colors cursor-pointer">

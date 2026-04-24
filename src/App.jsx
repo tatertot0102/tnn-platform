@@ -10,36 +10,49 @@ import Views from './pages/Views'
 import Members from './pages/Members'
 import Settings from './pages/Settings'
 import Notifications from './pages/Notifications'
+import Profile from './pages/Profile'
+import Reminders from './pages/Reminders'
 import Spinner from './components/ui/Spinner'
+import ResetPassword from './pages/ResetPassword'
 
-function ProtectedRoute({ children, execOnly = false }) {
-  const { user, profile, loading } = useAuth()
+function ProtectedRoute({ children, execOnly = false, viewsOnly = false }) {
+  const { user, profile, loading, isExec, canViewsAccess } = useAuth()
+  if (loading) return (
+    <div className="min-h-screen flex items-center justify-center bg-gray-950"><Spinner size={8} /></div>
+  )
+  if (!user) return <Navigate to="/login" replace />
+  if (execOnly && !isExec) return <Navigate to="/dashboard" replace />
+  if (viewsOnly && !canViewsAccess) return <Navigate to="/dashboard" replace />
+  return children
+}
+
+function AppRoutes() {
+  const { user, loading } = useAuth()
+
+  // Wait for auth to resolve before rendering any route.
+  // Without this, the /login route sees user=null during the async
+  // getSession call and flashes Login (or bounces an authed user back).
   if (loading) return (
     <div className="min-h-screen flex items-center justify-center bg-gray-950">
       <Spinner size={8} />
     </div>
   )
-  if (!user) return <Navigate to="/login" replace />
-  if (execOnly && profile?.role === 'member') return <Navigate to="/dashboard" replace />
-  return children
-}
-
-function AppRoutes() {
-  const { user } = useAuth()
-  const base = import.meta.env.BASE_URL.replace(/\/$/, '')
 
   return (
     <Routes>
       <Route path="/login" element={user ? <Navigate to="/dashboard" replace /> : <Login />} />
+      <Route path="/reset-password" element={<ResetPassword />} />
       <Route element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
-        <Route path="/dashboard"        element={<Dashboard />} />
-        <Route path="/segments"         element={<Segments />} />
-        <Route path="/segments/:id"     element={<SegmentDetail />} />
-        <Route path="/tasks"            element={<Tasks />} />
-        <Route path="/notifications"    element={<Notifications />} />
-        <Route path="/views"            element={<ProtectedRoute execOnly><Views /></ProtectedRoute>} />
-        <Route path="/members"          element={<ProtectedRoute execOnly><Members /></ProtectedRoute>} />
-        <Route path="/settings"         element={<ProtectedRoute execOnly><Settings /></ProtectedRoute>} />
+        <Route path="/dashboard"     element={<Dashboard />} />
+        <Route path="/segments"      element={<Segments />} />
+        <Route path="/segments/:id"  element={<SegmentDetail />} />
+        <Route path="/tasks"         element={<Tasks />} />
+        <Route path="/notifications" element={<Notifications />} />
+        <Route path="/profile"       element={<Profile />} />
+        <Route path="/views"         element={<ProtectedRoute viewsOnly><Views /></ProtectedRoute>} />
+        <Route path="/members"       element={<ProtectedRoute execOnly><Members /></ProtectedRoute>} />
+        <Route path="/reminders"     element={<ProtectedRoute execOnly><Reminders /></ProtectedRoute>} />
+        <Route path="/settings"      element={<ProtectedRoute execOnly><Settings /></ProtectedRoute>} />
       </Route>
       <Route path="*" element={<Navigate to="/dashboard" replace />} />
     </Routes>

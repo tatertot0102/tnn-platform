@@ -8,7 +8,9 @@ import Modal from '../components/ui/Modal'
 import Spinner from '../components/ui/Spinner'
 import { PRIORITIES, STATUSES, DEPARTMENTS } from '../lib/constants'
 import { format } from 'date-fns'
-import { Plus, Search, Filter } from 'lucide-react'
+import { Plus, Search, Trash2 } from 'lucide-react'
+
+const DEFAULT_MILESTONES = ['Pre-Production', 'Production', 'Post-Production']
 
 function CreateSegmentModal({ open, onClose, onCreated }) {
   const { profile } = useAuth()
@@ -18,9 +20,7 @@ function CreateSegmentModal({ open, onClose, onCreated }) {
   })
   const [loading, setLoading] = useState(false)
   const [error, setError]     = useState('')
-
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
-
   const toggleDept = (d) => set('departments',
     form.departments.includes(d) ? form.departments.filter(x => x !== d) : [...form.departments, d]
   )
@@ -29,14 +29,20 @@ function CreateSegmentModal({ open, onClose, onCreated }) {
     e.preventDefault()
     if (!form.title.trim()) { setError('Title is required'); return }
     setLoading(true)
-    const { error } = await supabase.from('segments').insert({
-      ...form,
-      created_by: profile.id,
+    const { data: seg, error: segErr } = await supabase.from('segments').insert({
+      ...form, created_by: profile.id,
       start_date: form.start_date || null,
       due_date:   form.due_date   || null,
-    })
+    }).select().single()
+
+    if (segErr) { setError(segErr.message); setLoading(false); return }
+
+    // Insert 3 default milestones
+    await supabase.from('milestones').insert(
+      DEFAULT_MILESTONES.map((title, i) => ({ segment_id: seg.id, title, position: i }))
+    )
+
     setLoading(false)
-    if (error) { setError(error.message); return }
     setForm({ title: '', priority: 'medium', status: 'not-started', departments: [], start_date: '', due_date: '', notes: '' })
     onCreated()
     onClose()
@@ -77,11 +83,8 @@ function CreateSegmentModal({ open, onClose, onCreated }) {
           <label className="block text-xs font-medium text-gray-400 mb-2">Departments</label>
           <div className="flex flex-wrap gap-2">
             {Object.entries(DEPARTMENTS).map(([v, d]) => (
-              <button
-                key={v} type="button"
-                onClick={() => toggleDept(v)}
-                className={`badge cursor-pointer transition-opacity ${d.color} ${form.departments.includes(v) ? 'opacity-100 ring-1 ring-white/20' : 'opacity-40'}`}
-              >
+              <button key={v} type="button" onClick={() => toggleDept(v)}
+                className={`badge cursor-pointer transition-opacity ${d.color} ${form.departments.includes(v) ? 'opacity-100 ring-1 ring-white/20' : 'opacity-40'}`}>
                 {d.label}
               </button>
             ))}
@@ -89,8 +92,9 @@ function CreateSegmentModal({ open, onClose, onCreated }) {
         </div>
         <div>
           <label className="block text-xs font-medium text-gray-400 mb-1.5">Notes</label>
-          <textarea className="input resize-none" rows={3} value={form.notes} onChange={e => set('notes', e.target.value)} placeholder="Instructions, notes..." />
+          <textarea className="input resize-none" rows={2} value={form.notes} onChange={e => set('notes', e.target.value)} placeholder="Instructions..." />
         </div>
+        <p className="text-xs text-gray-600">3 default milestones (Pre-Production, Production, Post-Production) will be created automatically.</p>
         {error && <p className="text-red-400 text-xs">{error}</p>}
         <div className="flex justify-end gap-3 pt-2">
           <button type="button" onClick={onClose} className="btn-ghost">Cancel</button>
@@ -104,26 +108,33 @@ function CreateSegmentModal({ open, onClose, onCreated }) {
 }
 
 export default function Segments() {
-  const { isExec, profile } = useAuth()
-  const [segments, setSegments] = useState([])
-  const [loading, setLoading]   = useState(true)
-  const [search, setSearch]     = useState('')
+  const { isExec } = useAuth()
+  const [segments, setSegments]     = useState([])
+  const [loading, setLoading]       = useState(true)
+  const [search, setSearch]         = useState('')
   const [filterStatus, setFilterStatus]     = useState('')
   const [filterPriority, setFilterPriority] = useState('')
   const [showCreate, setShowCreate] = useState(false)
+  const [deletingId, setDeletingId] = useState(null)
 
-  useEffect(() => { fetchSegments() }, [profile])
+  useEffect(() => { fetchSegments() }, [])
 
   async function fetchSegments() {
     setLoading(true)
-    let q = supabase
+    const { data } = await supabase
       .from('segments')
       .select('*, segment_roles(user_id, role_type, profiles(full_name))')
       .order('due_date', { ascending: true })
-
-    const { data } = await q
     setSegments(data ?? [])
     setLoading(false)
+  }
+
+  async function deleteSegment(id) {
+    if (!confirm('Delete this segment? All subtasks, roles, and milestones will be deleted. This cannot be undone.')) return
+    setDeletingId(id)
+    await supabase.from('segments').delete().eq('id', id)
+    setSegments(s => s.filter(x => x.id !== id))
+    setDeletingId(null)
   }
 
   const filtered = segments.filter(s => {
@@ -144,17 +155,10 @@ export default function Segments() {
           </button>
         )}
       />
-
-      {/* Filters */}
       <div className="flex flex-wrap gap-3 mb-6">
         <div className="relative flex-1 min-w-48">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
-          <input
-            className="input pl-8"
-            placeholder="Search segments..."
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-          />
+          <input className="input pl-8" placeholder="Search segments..." value={search} onChange={e => setSearch(e.target.value)} />
         </div>
         <select className="input w-auto" value={filterStatus} onChange={e => setFilterStatus(e.target.value)}>
           <option value="">All statuses</option>
@@ -173,20 +177,20 @@ export default function Segments() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-gray-800">
-                {['Priority','Title','Status','Departments','Team','Due Date'].map(h => (
-                  <th key={h} className="text-left text-xs font-semibold text-gray-500 px-4 py-3 first:pl-5">{h}</th>
+                {['Priority', 'Title', 'Status', 'Departments', 'Team', 'Due Date', ''].map((h, i) => (
+                  <th key={i} className="text-left text-xs font-semibold text-gray-500 px-4 py-3 first:pl-5">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-800/50">
               {filtered.length === 0 && (
-                <tr><td colSpan={6} className="text-center text-gray-500 py-12">No segments found</td></tr>
+                <tr><td colSpan={7} className="text-center text-gray-500 py-12">No segments found</td></tr>
               )}
               {filtered.map(seg => (
                 <tr key={seg.id} className="hover:bg-gray-800/40 transition-colors group">
                   <td className="px-4 py-3 pl-5"><PriorityBadge value={seg.priority} /></td>
                   <td className="px-4 py-3">
-                    <Link to={`/segments/${seg.id}`} className="text-gray-100 font-medium hover:text-brand-400 transition-colors group-hover:text-brand-300">
+                    <Link to={`/segments/${seg.id}`} className="text-gray-100 font-medium hover:text-brand-400 transition-colors">
                       {seg.title}
                     </Link>
                   </td>
@@ -198,7 +202,7 @@ export default function Segments() {
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex -space-x-1">
-                      {seg.segment_roles?.slice(0, 4).map((r, i) => (
+                      {[...new Map(seg.segment_roles?.map(r => [r.user_id, r])).values()].slice(0, 4).map((r, i) => (
                         <div key={i} title={r.profiles?.full_name}
                           className="w-6 h-6 rounded-full bg-brand-600 border-2 border-gray-900 flex items-center justify-center text-xs text-white font-bold">
                           {r.profiles?.full_name?.[0] ?? '?'}
@@ -209,6 +213,14 @@ export default function Segments() {
                   <td className="px-4 py-3 text-gray-400 text-xs">
                     {seg.due_date ? format(new Date(seg.due_date), 'MMM d, yyyy') : '—'}
                   </td>
+                  <td className="px-4 py-3">
+                    {isExec && (
+                      <button onClick={() => deleteSegment(seg.id)} disabled={deletingId === seg.id}
+                        className="text-gray-700 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100" title="Delete">
+                        {deletingId === seg.id ? <Spinner size={4} /> : <Trash2 size={14} />}
+                      </button>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -216,11 +228,7 @@ export default function Segments() {
         </div>
       )}
 
-      <CreateSegmentModal
-        open={showCreate}
-        onClose={() => setShowCreate(false)}
-        onCreated={fetchSegments}
-      />
+      <CreateSegmentModal open={showCreate} onClose={() => setShowCreate(false)} onCreated={fetchSegments} />
     </div>
   )
 }

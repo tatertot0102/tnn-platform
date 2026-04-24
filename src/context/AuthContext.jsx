@@ -9,15 +9,17 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    // Get initial session
+    let initialized = false
+
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null)
       if (session?.user) fetchProfile(session.user.id)
       else setLoading(false)
+      initialized = true
     })
 
-    // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!initialized) return  // skip duplicate fire on initial load
       setUser(session?.user ?? null)
       if (session?.user) fetchProfile(session.user.id)
       else { setProfile(null); setLoading(false) }
@@ -27,11 +29,7 @@ export function AuthProvider({ children }) {
   }, [])
 
   async function fetchProfile(userId) {
-    const { data } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', userId)
-      .single()
+    const { data } = await supabase.from('profiles').select('*').eq('id', userId).single()
     setProfile(data)
     setLoading(false)
   }
@@ -43,21 +41,18 @@ export function AuthProvider({ children }) {
 
   async function signUp(email, password, fullName) {
     const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: { data: { full_name: fullName } },
+      email, password, options: { data: { full_name: fullName } },
     })
     return { data, error }
   }
 
-  async function signOut() {
-    await supabase.auth.signOut()
-  }
+  async function signOut() { await supabase.auth.signOut() }
 
-  const isExec = profile?.role === 'exec' || profile?.role === 'admin'
+  const isExec        = ['exec', 'admin'].includes(profile?.role)
+  const canViewsAccess = ['member', 'exec-roles', 'exec', 'admin'].includes(profile?.role)
 
   return (
-    <AuthContext.Provider value={{ user, profile, loading, signIn, signUp, signOut, isExec, fetchProfile }}>
+    <AuthContext.Provider value={{ user, profile, loading, signIn, signUp, signOut, isExec, canViewsAccess, fetchProfile }}>
       {children}
     </AuthContext.Provider>
   )

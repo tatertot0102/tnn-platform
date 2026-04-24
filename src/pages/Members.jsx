@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import PageHeader from '../components/ui/PageHeader'
 import Spinner from '../components/ui/Spinner'
-import { USER_ROLES } from '../lib/constants'
 
 export default function Members() {
   const [members, setMembers] = useState([])
@@ -13,9 +12,9 @@ export default function Members() {
       .then(({ data }) => { setMembers(data ?? []); setLoading(false) })
   }, [])
 
-  async function updateRole(id, role) {
-    await supabase.from('profiles').update({ role }).eq('id', id)
-    setMembers(m => m.map(x => x.id === id ? { ...x, role } : x))
+  async function updateField(id, field, value) {
+    await supabase.from('profiles').update({ [field]: value }).eq('id', id)
+    setMembers(m => m.map(x => x.id === id ? { ...x, [field]: value } : x))
   }
 
   if (loading) return <div className="flex justify-center py-24"><Spinner size={8} /></div>
@@ -27,7 +26,7 @@ export default function Members() {
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-gray-800">
-              {['Member','Email','Role'].map(h => (
+              {['Member', 'Email', 'Slack User ID', 'Role'].map(h => (
                 <th key={h} className="text-left text-xs font-semibold text-gray-500 px-4 py-3 first:pl-5">{h}</th>
               ))}
             </tr>
@@ -43,12 +42,20 @@ export default function Members() {
                     <span className="font-medium text-gray-100">{m.full_name}</span>
                   </div>
                 </td>
-                <td className="px-4 py-3 text-gray-400">{m.email}</td>
+                <td className="px-4 py-3 text-gray-400 text-xs">{m.email}</td>
+                <td className="px-4 py-3">
+                  <input
+                    className="input text-xs w-36"
+                    placeholder="U0123456789"
+                    defaultValue={m.slack_user_id ?? ''}
+                    onBlur={e => updateField(m.id, 'slack_user_id', e.target.value.trim() || null)}
+                  />
+                </td>
                 <td className="px-4 py-3">
                   <select
                     className="input w-auto text-xs"
                     value={m.role ?? 'member'}
-                    onChange={e => updateRole(m.id, e.target.value)}
+                    onChange={e => updateField(m.id, 'role', e.target.value)}
                   >
                     <option value="member">Member</option>
                     <option value="exec">Exec</option>
@@ -60,6 +67,9 @@ export default function Members() {
           </tbody>
         </table>
       </div>
+      <p className="text-xs text-gray-600 mt-3">
+        Members can also set their own Slack ID from their Profile page.
+      </p>
     </div>
   )
 }

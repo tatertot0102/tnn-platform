@@ -24,6 +24,7 @@ export const DEPARTMENTS = {
   'etc':             { label: 'Etc.',            color: 'bg-gray-800 text-gray-300' },
 }
 
+// Primary roles now support multiple assignees — no uniqueness enforced in UI
 export const PRIMARY_ROLES = ['Script Writer', 'Director', 'Video Editor']
 
 export const SECONDARY_ROLES = [

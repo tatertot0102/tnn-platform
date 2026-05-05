@@ -13,6 +13,12 @@ export default function ResetPassword() {
   const [ready, setReady] = useState(false)
 
   useEffect(() => {
+    function showPasswordForm() {
+      setReady(true)
+      setError('')
+      window.history.replaceState({}, document.title, window.location.pathname)
+    }
+
     async function init() {
       try {
         // Supabase may either place recovery tokens in the URL hash
@@ -34,14 +40,13 @@ export default function ResetPassword() {
           if (error) {
             setError(error.message)
           } else {
-            setReady(true)
-            window.history.replaceState({}, document.title, window.location.pathname)
+            showPasswordForm()
           }
         } else {
           const { data } = await supabase.auth.getSession()
 
           if (data?.session) {
-            setReady(true)
+            showPasswordForm()
           } else {
             setError('This reset link is invalid or expired. Please request a new password reset email.')
           }
@@ -53,7 +58,20 @@ export default function ResetPassword() {
       }
     }
 
+    const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'PASSWORD_RECOVERY' || session) {
+        setTimeout(() => {
+          showPasswordForm()
+          setLoading(false)
+        }, 0)
+      }
+    })
+
     init()
+
+    return () => {
+      authListener?.subscription?.unsubscribe()
+    }
   }, [])
 
   async function handleSubmit(e) {
@@ -83,8 +101,9 @@ export default function ResetPassword() {
       return
     }
 
-    alert('Password updated successfully.')
-    navigate('/login')
+    await supabase.auth.signOut()
+    alert('Password updated successfully. Please sign in with your new password.')
+    navigate('/login', { replace: true })
   }
 
   return (
@@ -92,7 +111,7 @@ export default function ResetPassword() {
       <div className="w-full max-w-md card p-6">
         <h1 className="text-2xl font-bold text-white mb-2">Reset Password</h1>
         <p className="text-sm text-gray-400 mb-6">
-          Enter a new password for your account.
+          Your reset link has been verified. Enter a new password to finish updating your account.
         </p>
 
         {loading ? (

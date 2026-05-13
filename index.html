@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/tnn-platform/favicon1.svg" />
+    <link rel="icon" type="image/svg+xml" href="/favicon1.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
     <title>TNN Platform</title>
@@ -11,26 +11,28 @@
     <meta property="og:title" content="TNN Platform" />
     <meta property="og:description" content="The News Network platform for Brooklyn Tech. Watch TNN on YouTube at @tnn_bths and follow us on Instagram for the latest stories." />
     <meta property="og:type" content="website" />
-    <meta property="og:url" content="https://tatertot0102.github.io/tnn-platform/" />
-    <meta property="og:image" content="https://tatertot0102.github.io/tnn-platform/preview.png" />
+    <meta property="og:url" content="http://platform.bthstnn.org/" />
+    <meta property="og:image" content="http://platform.bthstnn.org/preview.png" />
     <meta property="og:site_name" content="TNN Platform" />
 
     <meta name="youtube" content="https://www.youtube.com/@tnn_bths" />
     <script>
-      // Handle GitHub Pages redirect
+      // Restore BrowserRouter paths redirected by 404.html on static hosts.
       (function(l) {
-        if (l.search[1] === '/') {
-          var decoded = l.search.slice(1).split('&').map(function(s) {
-            return s.replace(/~and~/g, '&')
-          }).join('?');
-          window.history.replaceState(null, null,
-            l.pathname.slice(0, -1) + decoded + l.hash
+        var params = new URLSearchParams(l.search);
+        var path = params.get('p');
+        if (path) {
+          var query = params.get('q');
+          window.history.replaceState(
+            null,
+            null,
+            path + (query ? '?' + query.replace(/~and~/g, '&') : '') + l.hash
           );
         }
       }(window.location))
     </script>
-    <script type="module" crossorigin src="/tnn-platform/assets/index-CQ2dU8QQ.js"></script>
-    <link rel="stylesheet" crossorigin href="/tnn-platform/assets/index-El0BMuYF.css">
+    <script type="module" crossorigin src="/assets/index-C4HiG-Y-.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-B9S5llSX.css">
   </head>
   <body>
     <div id="root"></div>

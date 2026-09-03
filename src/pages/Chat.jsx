@@ -7,14 +7,35 @@ import NewChannelModal from '../components/chat/NewChannelModal'
 import NewDmModal from '../components/chat/NewDmModal'
 import ManageGroupsModal from '../components/chat/ManageGroupsModal'
 import { format } from 'date-fns'
-import { Hash, Megaphone, MessageCircle, Plus, Link2, Users2, Lock } from 'lucide-react'
+import { Hash, Megaphone, MessageCircle, Plus, Link2, Users2, Lock, Mail } from 'lucide-react'
+import { splitBodyWithMentions } from '../lib/chat'
+import MentionChip from '../components/chat/MentionChip'
 
-function renderBody(text) {
-  const parts = text.split(/(@[A-Za-z][\w' -]*)/g)
-  return parts.map((part, i) =>
-    part.startsWith('@')
-      ? <span key={i} className="text-brand-400 font-medium">{part}</span>
-      : <span key={i}>{part}</span>
+function MessageBody({ body, mentions }) {
+  return (
+    <>
+      {splitBodyWithMentions(body, mentions).map((part, i) =>
+        part.type === 'mention'
+          ? <MentionChip key={i} mention={part.mention} />
+          : <span key={i}>{part.value}</span>
+      )}
+    </>
+  )
+}
+
+function EmailCard({ msg }) {
+  return (
+    <div className="border border-brand-800/50 bg-brand-950/20 rounded-xl p-3 max-w-lg">
+      <p className="flex items-center gap-1.5 text-xs font-semibold text-brand-300 uppercase tracking-wider mb-2">
+        <Mail size={12} /> Email · {msg.email_subject}
+      </p>
+      <div className="flex flex-wrap gap-1 mb-2">
+        {(msg.email_to ?? []).map(r => (
+          <span key={r.id} className="badge bg-gray-800 text-gray-300 text-[10px]">{r.label}</span>
+        ))}
+      </div>
+      <p className="text-sm text-gray-300 whitespace-pre-wrap break-words">{msg.body}</p>
+    </div>
   )
 }
 
@@ -227,7 +248,6 @@ export default function Chat() {
               {messages.length === 0 && <p className="text-gray-600 text-sm">No messages yet.</p>}
               {messages.map(msg => {
                 const sender = allMembers.find(m => m.id === msg.sender_id)
-                const isEmail = /^\/email\b/i.test(msg.body)
                 return (
                   <div key={msg.id} className="flex items-start gap-2.5">
                     <div className="w-7 h-7 rounded-full bg-brand-600 flex items-center justify-center text-xs font-bold text-white flex-shrink-0">
@@ -237,9 +257,14 @@ export default function Chat() {
                       <div className="flex items-baseline gap-2">
                         <span className="text-sm font-medium text-gray-200">{sender?.full_name ?? 'Unknown'}</span>
                         <span className="text-[11px] text-gray-600">{format(new Date(msg.created_at), 'MMM d, h:mm a')}</span>
-                        {isEmail && <span className="badge bg-yellow-900 text-yellow-300 text-[10px]">emailed</span>}
                       </div>
-                      <p className="text-sm text-gray-300 whitespace-pre-wrap break-words">{renderBody(msg.body)}</p>
+                      {msg.email_subject ? (
+                        <div className="mt-1"><EmailCard msg={msg} /></div>
+                      ) : (
+                        <p className="text-sm text-gray-300 whitespace-pre-wrap break-words">
+                          <MessageBody body={msg.body} mentions={msg.mentions} />
+                        </p>
+                      )}
                     </div>
                   </div>
                 )

@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { PriorityBadge, StatusBadge, DeptBadge } from '../components/ui/Badge'
@@ -219,7 +219,7 @@ function SubmitUrlModal({ open, onClose, task, onSave }) {
 }
 
 // ── Draggable Subtask Row ─────────────────────────────────────
-function SortableSubtaskRow({ task, segmentMembers, onToggle, onDelete, onAssign, onDateChange, canEdit, profileId, isExec, onSubmitClick }) {
+function SortableSubtaskRow({ task, segmentMembers, onToggle, onDelete, onAssign, onDateChange, canEdit, profileId, isExec, onSubmitClick, highlighted }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: task.id })
   const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.3 : 1 }
   const isOverdue = task.due_date && !task.completed && isBefore(new Date(task.due_date), new Date()) && !isToday(new Date(task.due_date))
@@ -229,8 +229,8 @@ function SortableSubtaskRow({ task, segmentMembers, onToggle, onDelete, onAssign
   const canSubmit = isExec || assigneeIds.includes(profileId)
 
   return (
-    <div ref={setNodeRef} style={style}
-      className="flex items-center gap-2 group py-1.5 border-b border-gray-800/40 last:border-0">
+    <div ref={setNodeRef} style={style} id={`subtask-${task.id}`}
+      className={`flex items-center gap-2 group py-1.5 border-b border-gray-800/40 last:border-0 rounded-lg transition-colors ${highlighted ? 'bg-brand-950/40 ring-1 ring-brand-500/60' : ''}`}>
       <div {...attributes} {...listeners} className="cursor-grab text-gray-700 hover:text-gray-400 flex-shrink-0 touch-none">
         <GripVertical size={14} />
       </div>
@@ -338,7 +338,7 @@ function MilestoneDropZone({ id, children, isOver }) {
 }
 
 // ── Milestone Block ───────────────────────────────────────────
-function MilestoneBlock({ milestone, subtasks, segmentMembers, onToggle, onDelete, onAssign, onDateChange, onDeleteMilestone, onRename, onAddSubtask, canEdit, isExec, profileId, isOver, onSubmitClick }) {
+function MilestoneBlock({ milestone, subtasks, segmentMembers, onToggle, onDelete, onAssign, onDateChange, onDeleteMilestone, onRename, onAddSubtask, canEdit, isExec, profileId, isOver, onSubmitClick, highlightId }) {
   const [collapsed, setCollapsed] = useState(false)
   const [newTask, setNewTask] = useState('')
   const [editingTitle, setEditingTitle] = useState(false)
@@ -390,7 +390,8 @@ function MilestoneBlock({ milestone, subtasks, segmentMembers, onToggle, onDelet
               {subtasks.map(t => (
                 <SortableSubtaskRow key={t.id} task={t} segmentMembers={segmentMembers}
                   onToggle={onToggle} onDelete={onDelete} onAssign={onAssign} onDateChange={onDateChange}
-                  canEdit={canEdit} profileId={profileId} isExec={isExec} onSubmitClick={onSubmitClick} />
+                  canEdit={canEdit} profileId={profileId} isExec={isExec} onSubmitClick={onSubmitClick}
+                  highlighted={t.id === highlightId} />
               ))}
             </SortableContext>
           </MilestoneDropZone>
@@ -416,6 +417,8 @@ export default function SegmentDetail() {
   const { id }              = useParams()
   const { isExec, profile } = useAuth()
   const navigate            = useNavigate()
+  const [searchParams]      = useSearchParams()
+  const highlightId         = searchParams.get('highlight')
 
   const [seg, setSeg]               = useState(null)
   const [subtasks, setSubtasks]     = useState([])
@@ -424,7 +427,7 @@ export default function SegmentDetail() {
   const [members, setMembers]       = useState([])
   const [loading, setLoading]       = useState(true)
   const [saving, setSaving]         = useState(false)
-  const [activeTab, setActiveTab]   = useState('overview')
+  const [activeTab, setActiveTab]   = useState(searchParams.get('tab') === 'subtasks' ? 'subtasks' : 'overview')
   const [showGuestModal, setShowGuestModal]   = useState(false)
   const [submitTask, setSubmitTask]           = useState(null)
   const [newSubtask, setNewSubtask]     = useState('')
@@ -438,6 +441,12 @@ export default function SegmentDetail() {
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }))
 
   useEffect(() => { fetchAll() }, [id])
+
+  useEffect(() => {
+    if (!highlightId || loading) return
+    const el = document.getElementById(`subtask-${highlightId}`)
+    el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  }, [highlightId, loading, subtasks])
 
   useEffect(() => {
     async function refreshPublicVideo() {
@@ -1009,7 +1018,7 @@ export default function SegmentDetail() {
                 onToggle={toggleSubtask} onDelete={deleteSubtask} onAssign={assignSubtask} onDateChange={updateSubtaskDate}
                 onDeleteMilestone={deleteMilestone} onRename={renameMilestone} onAddSubtask={addSubtask}
                 canEdit={canEdit} isExec={isExec} profileId={profile?.id}
-                isOver={overId === `milestone-${m.id}`} onSubmitClick={setSubmitTask} />
+                isOver={overId === `milestone-${m.id}`} onSubmitClick={setSubmitTask} highlightId={highlightId} />
             ))}
             <div className={`card p-5 mb-4 transition-colors ${overId === 'ungrouped' ? 'border-brand-500/50 bg-brand-950/10' : ''}`}>
               {milestones.length > 0 && <p className="text-xs text-gray-600 font-medium mb-3 uppercase tracking-wider">Ungrouped</p>}
@@ -1020,7 +1029,8 @@ export default function SegmentDetail() {
                   {ungrouped.map(t => (
                     <SortableSubtaskRow key={t.id} task={t} segmentMembers={segmentMembers}
                       onToggle={toggleSubtask} onDelete={deleteSubtask} onAssign={assignSubtask} onDateChange={updateSubtaskDate}
-                      canEdit={canEdit} profileId={profile?.id} isExec={isExec} onSubmitClick={setSubmitTask} />
+                      canEdit={canEdit} profileId={profile?.id} isExec={isExec} onSubmitClick={setSubmitTask}
+                      highlighted={t.id === highlightId} />
                   ))}
                 </SortableContext>
               </MilestoneDropZone>

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { PriorityBadge, DeptBadge } from '../components/ui/Badge'
@@ -29,6 +30,14 @@ const PRIORITY_RING = {
   'tbd': 'border-gray-600 hover:border-gray-400',
 }
 
+const PRIORITY_STRIPE = {
+  'ultra-high': 'bg-red-500',
+  'high': 'bg-orange-500',
+  'medium': 'bg-yellow-500',
+  'low': 'bg-green-500',
+  'tbd': 'bg-gray-600',
+}
+
 function dueSection(dueDate) {
   if (!dueDate) return 'no-date'
   const d = new Date(dueDate)
@@ -38,10 +47,10 @@ function dueSection(dueDate) {
 }
 
 const SECTION_META = {
-  overdue:  { label: 'Overdue',  className: 'text-red-400' },
-  today:    { label: 'Today',    className: 'text-gray-100' },
-  upcoming: { label: 'Upcoming', className: 'text-gray-100' },
-  'no-date':{ label: 'No Date',  className: 'text-gray-500' },
+  overdue:  { label: 'Overdue',  className: 'text-red-400',    accent: 'bg-red-500/70' },
+  today:    { label: 'Today',    className: 'text-brand-300',  accent: 'bg-brand-500/70' },
+  upcoming: { label: 'Upcoming', className: 'text-gray-200',   accent: 'bg-gray-600' },
+  'no-date':{ label: 'No Date',  className: 'text-gray-500',   accent: 'bg-gray-700' },
 }
 const SECTION_ORDER = ['overdue', 'today', 'upcoming', 'no-date']
 
@@ -240,30 +249,37 @@ function TaskLinkModal({ open, onClose, task, onSave }) {
   )
 }
 
-function TaskRow({ task, members, canEdit, isExec, isSubtask, onToggle, onEdit, onLink, onDelete }) {
+function TaskRow({ task, members, canEdit, isExec, isSubtask, onToggle, onEdit, onLink, onDelete, highlighted }) {
   const isOverdue = task.due_date && task.status !== 'done' && isPast(new Date(task.due_date)) && !isToday(new Date(task.due_date))
   const assigneeNames = task.assignee_ids?.map(id => members.find(m => m.id === id)?.full_name).filter(Boolean) ?? []
 
   return (
-    <div className={`flex items-center gap-3 group py-2.5 ${isSubtask ? 'pl-8 border-t border-gray-800/60' : 'px-4'}`}>
-      {isSubtask && <CornerDownRight size={13} className="text-gray-700 flex-shrink-0 -ml-5" />}
+    <div
+      id={`task-${task.id}`}
+      className={`flex items-center gap-3 group py-2.5 transition-colors ${
+        isSubtask
+          ? 'pl-9 pr-3 border-t border-gray-800/60'
+          : 'px-4'
+      } ${highlighted ? 'bg-brand-950/40 ring-1 ring-inset ring-brand-500/60 rounded-lg' : ''}`}
+    >
+      {isSubtask && <CornerDownRight size={13} className="text-gray-700 flex-shrink-0 -ml-6" />}
       <button
         onClick={() => canEdit && onToggle(task)}
-        className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-colors ${
+        className={`rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-all ${isSubtask ? 'w-4 h-4' : 'w-5 h-5'} ${
           task.status === 'done' ? 'bg-brand-500 border-brand-500' : `${PRIORITY_RING[task.priority] ?? PRIORITY_RING.tbd}`
         } ${canEdit ? 'cursor-pointer' : 'cursor-default'}`}
       >
-        {task.status === 'done' && <Check size={11} className="text-white" />}
+        {task.status === 'done' && <Check size={isSubtask ? 9 : 11} className="text-white" />}
       </button>
 
       <div className="flex-1 min-w-0">
-        <p className={`text-sm font-medium truncate ${task.status === 'done' ? 'text-gray-600 line-through' : 'text-gray-100'}`}>
+        <p className={`font-medium truncate ${isSubtask ? 'text-sm' : 'text-[15px]'} ${task.status === 'done' ? 'text-gray-600 line-through' : 'text-gray-100'}`}>
           {task.title}
           {task.exec_only && <Lock size={11} className="inline-block ml-1.5 mb-0.5 text-gray-600" />}
         </p>
         <div className="flex flex-wrap items-center gap-2 mt-1">
           {task.due_date && (
-            <span className={`flex items-center gap-1 text-xs ${isOverdue ? 'text-red-400' : 'text-gray-500'}`}>
+            <span className={`flex items-center gap-1 text-xs ${isOverdue ? 'text-red-400 font-medium' : 'text-gray-500'}`}>
               <CalendarClock size={11} /> {format(new Date(task.due_date), 'MMM d')}
             </span>
           )}
@@ -286,9 +302,11 @@ function TaskRow({ task, members, canEdit, isExec, isSubtask, onToggle, onEdit, 
 
       <div className="flex items-center gap-2 flex-shrink-0">
         {!isSubtask && <PriorityBadge value={task.priority} />}
-        <span className="hidden sm:flex items-center gap-1 text-xs text-gray-600">
-          <Inbox size={11} /> Inbox
-        </span>
+        {!isSubtask && (
+          <span className="hidden sm:flex items-center gap-1 text-xs text-gray-600">
+            <Inbox size={11} /> Inbox
+          </span>
+        )}
         {canEdit && (
           <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
             <button onClick={() => onEdit(task)} className="btn-ghost text-xs px-2 py-1">Edit</button>
@@ -309,6 +327,8 @@ function TaskRow({ task, members, canEdit, isExec, isSubtask, onToggle, onEdit, 
 
 export default function Tasks() {
   const { isExec, profile } = useAuth()
+  const [searchParams] = useSearchParams()
+  const highlightId = searchParams.get('highlight')
   const [tasks, setTasks] = useState([])
   const [members, setMembers] = useState([])
   const [loading, setLoading] = useState(true)
@@ -323,6 +343,11 @@ export default function Tasks() {
   const [subtaskTitle, setSubtaskTitle] = useState('')
 
   useEffect(() => { fetchAll() }, [profile])
+
+  useEffect(() => {
+    if (!highlightId || loading) return
+    document.getElementById(`task-${highlightId}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  }, [highlightId, loading, tasks])
 
   async function fetchAll() {
     if (!profile) return
@@ -454,11 +479,12 @@ export default function Tasks() {
 
           return (
             <div key={key}>
-              <div className="flex items-center justify-between mb-2 px-1">
+              <div className="flex items-center justify-between mb-2.5 px-1">
                 <button
                   onClick={() => setCollapsed(c => ({ ...c, [key]: !c[key] }))}
-                  className="flex items-center gap-1.5 text-sm font-semibold"
+                  className="flex items-center gap-2 text-sm font-semibold"
                 >
+                  <span className={`w-1 h-4 rounded-full ${meta.accent}`} />
                   {isCollapsed ? <ChevronRight size={15} className="text-gray-500" /> : <ChevronDown size={15} className="text-gray-500" />}
                   <span className={meta.className}>{meta.label}</span>
                   <span className="text-xs text-gray-600 font-normal">({items.length})</span>
@@ -466,9 +492,9 @@ export default function Tasks() {
                 {key === 'overdue' && isExec && (
                   <button
                     onClick={() => setRescheduling(r => !r)}
-                    className="text-xs font-medium text-red-400 hover:text-red-300 transition-colors"
+                    className="flex items-center gap-1 text-xs font-medium text-red-400 hover:text-red-300 hover:bg-red-950/40 px-2 py-1 rounded-md transition-colors"
                   >
-                    Reschedule
+                    <CalendarClock size={12} /> Reschedule all
                   </button>
                 )}
               </div>
@@ -482,26 +508,32 @@ export default function Tasks() {
               )}
 
               {!isCollapsed && (
-                <div className="card divide-y divide-gray-800/60">
+                <div className="space-y-2">
                   {items.map(task => {
                     const canEdit = isExec || task.assignee_ids?.includes(profile.id)
                     const kids = childrenOf(task.id)
                     return (
-                      <div key={task.id}>
+                      <div
+                        key={task.id}
+                        className={`relative overflow-hidden card transition-shadow hover:shadow-lg hover:shadow-black/20 hover:border-gray-700`}
+                      >
+                        <div className={`absolute left-0 top-0 bottom-0 w-1 ${PRIORITY_STRIPE[task.priority] ?? PRIORITY_STRIPE.tbd}`} />
                         <TaskRow
                           task={task} members={members} canEdit={canEdit} isExec={isExec}
                           onToggle={toggleDone} onEdit={setEditing} onLink={setLinkEditing} onDelete={deleteTask}
+                          highlighted={task.id === highlightId}
                         />
                         {kids.map(kid => (
                           <TaskRow
                             key={kid.id} task={kid} members={members} isSubtask
                             canEdit={isExec || kid.assignee_ids?.includes(profile.id)} isExec={isExec}
                             onToggle={toggleDone} onEdit={setEditing} onLink={setLinkEditing} onDelete={deleteTask}
+                            highlighted={kid.id === highlightId}
                           />
                         ))}
                         {canEdit && (
                           newSubtaskFor === task.id ? (
-                            <div className="flex items-center gap-2 pl-8 pr-4 py-2 border-t border-gray-800/60">
+                            <div className="flex items-center gap-2 pl-9 pr-4 py-2 border-t border-gray-800/60">
                               <input
                                 autoFocus
                                 className="input text-xs flex-1 py-1.5"
@@ -519,7 +551,7 @@ export default function Tasks() {
                           ) : (
                             <button
                               onClick={() => { setNewSubtaskFor(task.id); setSubtaskTitle('') }}
-                              className="flex items-center gap-1.5 pl-8 pr-4 py-1.5 text-xs text-gray-600 hover:text-brand-400 transition-colors border-t border-gray-800/60 w-full"
+                              className="flex items-center gap-1.5 pl-9 pr-4 py-1.5 text-xs text-gray-600 hover:text-brand-400 transition-colors border-t border-gray-800/60 w-full"
                             >
                               <Plus size={12} /> Add sub-task
                             </button>
@@ -542,13 +574,15 @@ export default function Tasks() {
           <p className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-3">
             Completed ({doneTop.length})
           </p>
-          <div className="card divide-y divide-gray-800/60 opacity-60 hover:opacity-80 transition-opacity">
+          <div className="space-y-1.5 opacity-60 hover:opacity-80 transition-opacity">
             {doneTop.map(task => (
-              <TaskRow
-                key={task.id} task={task} members={members}
-                canEdit={isExec || task.assignee_ids?.includes(profile.id)} isExec={isExec}
-                onToggle={toggleDone} onEdit={setEditing} onLink={setLinkEditing} onDelete={deleteTask}
-              />
+              <div key={task.id} className="card">
+                <TaskRow
+                  task={task} members={members}
+                  canEdit={isExec || task.assignee_ids?.includes(profile.id)} isExec={isExec}
+                  onToggle={toggleDone} onEdit={setEditing} onLink={setLinkEditing} onDelete={deleteTask}
+                />
+              </div>
             ))}
           </div>
         </div>

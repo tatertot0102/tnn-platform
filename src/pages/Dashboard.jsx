@@ -5,6 +5,7 @@ import { Link } from 'react-router-dom'
 import { PriorityBadge, StatusBadge, DeptBadge } from '../components/ui/Badge'
 import PageHeader from '../components/ui/PageHeader'
 import Spinner from '../components/ui/Spinner'
+import ErrorState from '../components/ui/ErrorState'
 import { format, isAfter, isBefore, addDays } from 'date-fns'
 import { AlertTriangle, Clock, Film, CheckSquare, Bell } from 'lucide-react'
 import SlackReminderModal from '../components/dashboard/SlackReminderModal'
@@ -28,6 +29,7 @@ export default function Dashboard() {
   const [segments, setSegments] = useState([])
   const [tasks, setTasks]       = useState([])
   const [loading, setLoading]   = useState(true)
+  const [loadError, setLoadError] = useState(false)
   const [showReminder, setShowReminder] = useState(false)
 
   useEffect(() => { fetchData() }, [profile])
@@ -35,23 +37,27 @@ export default function Dashboard() {
   async function fetchData() {
     if (!profile) return
     setLoading(true)
+    setLoadError(false)
 
     if (isExec) {
       // Execs see everything
-      const [{ data: segs }, { data: taskData }] = await Promise.all([
+      const [{ data: segs, error: segError }, { data: taskData, error: taskError }] = await Promise.all([
         supabase.from('segments').select('*, segment_roles(user_id, role_type)')
           .order('due_date', { ascending: true }).limit(20),
         supabase.from('tasks').select('*').neq('status', 'done')
           .order('due_date', { ascending: true }).limit(10),
       ])
+      if (segError || taskError) { setLoadError(true); setLoading(false); return }
       setSegments(segs ?? [])
       setTasks(taskData ?? [])
     } else {
       // Members: only segments they have a role on, only tasks assigned to them
-      const { data: roleRows } = await supabase
+      const { data: roleRows, error: roleError } = await supabase
         .from('segment_roles')
         .select('segment_id')
         .eq('user_id', profile.id)
+
+      if (roleError) { setLoadError(true); setLoading(false); return }
 
       const segIds = [...new Set((roleRows ?? []).map(r => r.segment_id))]
 
@@ -66,6 +72,7 @@ export default function Dashboard() {
           .order('due_date', { ascending: true }).limit(10),
       ])
 
+      if (segsResult.error || tasksResult.error) { setLoadError(true); setLoading(false); return }
       setSegments(segsResult.data ?? [])
       setTasks(tasksResult.data ?? [])
     }
@@ -79,6 +86,7 @@ export default function Dashboard() {
   const dueSoon = segments.filter(s => s.due_date && isAfter(new Date(s.due_date), today) && isBefore(new Date(s.due_date), soon) && s.status !== 'done')
 
   if (loading) return <div className="flex items-center justify-center h-64"><Spinner size={8} /></div>
+  if (loadError) return <ErrorState message="Could not load your dashboard." onRetry={fetchData} />
 
   return (
     <div>

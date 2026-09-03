@@ -5,6 +5,7 @@ import {
   Users, Settings, LogOut, Menu, X, UserCircle, ExternalLink, MessageSquare
 } from 'lucide-react'
 import { useState } from 'react'
+import tnnLogo from '../../assets/tnn-logo.svg'
 
 const baseNavItems = [
   { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
@@ -41,8 +42,8 @@ export default function Sidebar() {
     <div className="flex flex-col h-full">
       <div className="px-4 py-5 border-b border-gray-800">
         <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-brand-600 flex items-center justify-center">
-            <span className="text-white font-bold text-sm">T</span>
+          <div className="w-8 h-8 rounded-lg bg-white flex items-center justify-center p-1 flex-shrink-0">
+            <img src={tnnLogo} alt="TNN" className="w-full h-full object-contain" />
           </div>
           <div>
             <p className="font-bold text-white text-sm">TNN</p>

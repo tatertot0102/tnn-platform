@@ -6,6 +6,9 @@ import { PriorityBadge, DeptBadge } from '../components/ui/Badge'
 import PageHeader from '../components/ui/PageHeader'
 import Modal from '../components/ui/Modal'
 import Spinner from '../components/ui/Spinner'
+import ErrorState from '../components/ui/ErrorState'
+import PeopleDropdown from '../components/ui/PeopleDropdown'
+import { useToast } from '../context/ToastContext'
 import { PRIORITIES, STATUSES, DEPARTMENTS } from '../lib/constants'
 import { format, isPast, isToday } from 'date-fns'
 
@@ -159,27 +162,12 @@ function TaskForm({ onSave, initial, onCancel, members, topLevelTasks, isExec, d
 
       <div>
         <label className="block text-xs font-medium text-gray-400 mb-1.5">Assignees</label>
-        <div className="flex flex-wrap gap-2 p-2 bg-gray-800 rounded-lg min-h-10">
-          {members.map(m => (
-            <button
-              key={m.id}
-              type="button"
-              onClick={() => set(
-                'assignee_ids',
-                form.assignee_ids.includes(m.id)
-                  ? form.assignee_ids.filter(x => x !== m.id)
-                  : [...form.assignee_ids, m.id]
-              )}
-              className={`text-xs px-2 py-1 rounded-md transition-colors ${
-                form.assignee_ids.includes(m.id)
-                  ? 'bg-brand-600 text-white'
-                  : 'bg-gray-700 text-gray-400 hover:text-gray-200'
-              }`}
-            >
-              {m.full_name}
-            </button>
-          ))}
-        </div>
+        <PeopleDropdown
+          options={members.map(m => ({ id: m.id, label: m.full_name }))}
+          selectedIds={form.assignee_ids}
+          onChange={ids => set('assignee_ids', ids)}
+          placeholder="Assign people..."
+        />
       </div>
 
       <div>
@@ -327,11 +315,13 @@ function TaskRow({ task, members, canEdit, isExec, isSubtask, onToggle, onEdit, 
 
 export default function Tasks() {
   const { isExec, profile } = useAuth()
+  const toast = useToast()
   const [searchParams] = useSearchParams()
   const highlightId = searchParams.get('highlight')
   const [tasks, setTasks] = useState([])
   const [members, setMembers] = useState([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState(false)
   const [showCreate, setShowCreate] = useState(false)
   const [subtaskParent, setSubtaskParent] = useState(null)
   const [editing, setEditing] = useState(null)
@@ -352,8 +342,9 @@ export default function Tasks() {
   async function fetchAll() {
     if (!profile) return
     setLoading(true)
+    setLoadError(false)
 
-    const [{ data: taskData }, { data: memberData }] = await Promise.all([
+    const [{ data: taskData, error: taskError }, { data: memberData, error: memberError }] = await Promise.all([
       isExec
         ? supabase.from('tasks').select('*').order('due_date', { ascending: true })
         : supabase.from('tasks').select('*')
@@ -362,49 +353,60 @@ export default function Tasks() {
       supabase.from('profiles').select('id, full_name'),
     ])
 
+    if (taskError || memberError) {
+      setLoadError(true)
+      toast.error('Could not load tasks. Check your connection and retry.')
+      setLoading(false)
+      return
+    }
+
     setTasks(taskData ?? [])
     setMembers(memberData ?? [])
     setLoading(false)
   }
 
   async function createTask(form) {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('tasks')
       .insert({ ...form, created_by: profile.id })
       .select()
       .single()
 
+    if (error) { toast.error('Could not create task.'); return }
     setTasks(t => [...t, data])
     setShowCreate(false)
     setSubtaskParent(null)
   }
 
   async function updateTask(id, form) {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('tasks')
       .update(form)
       .eq('id', id)
       .select()
       .single()
 
+    if (error) { toast.error('Could not save task.'); return }
     setTasks(t => t.map(x => x.id === id ? data : x))
     setEditing(null)
   }
 
   async function updateTaskLink(id, link_url) {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('tasks')
       .update({ link_url })
       .eq('id', id)
       .select()
       .single()
 
+    if (error) { toast.error('Could not save link.'); return }
     setTasks(t => t.map(x => x.id === id ? data : x))
   }
 
   async function deleteTask(id) {
     if (!confirm('Delete this task? Sub-tasks will be deleted too.')) return
-    await supabase.from('tasks').delete().eq('id', id)
+    const { error } = await supabase.from('tasks').delete().eq('id', id)
+    if (error) { toast.error('Could not delete task.'); return }
     setTasks(t => t.filter(x => x.id !== id && x.parent_task_id !== id))
   }
 
@@ -413,13 +415,14 @@ export default function Tasks() {
     if (!canEdit) return
 
     const newStatus = task.status === 'done' ? 'not-started' : 'done'
-    await supabase.from('tasks').update({ status: newStatus }).eq('id', task.id)
+    const { error } = await supabase.from('tasks').update({ status: newStatus }).eq('id', task.id)
+    if (error) { toast.error('Could not update task.'); return }
     setTasks(t => t.map(x => x.id === task.id ? { ...x, status: newStatus } : x))
   }
 
   async function addQuickSubtask(parent) {
     if (!subtaskTitle.trim()) return
-    const { data } = await supabase.from('tasks').insert({
+    const { data, error } = await supabase.from('tasks').insert({
       title: subtaskTitle.trim(),
       priority: parent.priority,
       status: 'not-started',
@@ -429,6 +432,7 @@ export default function Tasks() {
       exec_only: parent.exec_only,
       created_by: profile.id,
     }).select().single()
+    if (error) { toast.error('Could not add sub-task.'); return }
     setTasks(t => [...t, data])
     setSubtaskTitle('')
     setNewSubtaskFor(null)
@@ -437,7 +441,8 @@ export default function Tasks() {
   async function handleRescheduleOverdue() {
     if (!rescheduleDate) return
     const overdueTop = topLevel.filter(t => t.status !== 'done' && dueSection(t.due_date) === 'overdue')
-    await Promise.all(overdueTop.map(t => supabase.from('tasks').update({ due_date: rescheduleDate }).eq('id', t.id)))
+    const results = await Promise.all(overdueTop.map(t => supabase.from('tasks').update({ due_date: rescheduleDate }).eq('id', t.id)))
+    if (results.some(r => r.error)) toast.error('Some tasks could not be rescheduled.')
     setTasks(t => t.map(x => overdueTop.find(o => o.id === x.id) ? { ...x, due_date: rescheduleDate } : x))
     setRescheduling(false)
     setRescheduleDate('')
@@ -447,6 +452,7 @@ export default function Tasks() {
   const childrenOf = (id) => tasks.filter(t => t.parent_task_id === id)
 
   if (loading) return <div className="flex justify-center py-24"><Spinner size={8} /></div>
+  if (loadError) return <ErrorState message="Could not load tasks." onRetry={fetchAll} />
 
   const openTop = topLevel.filter(t => t.status !== 'done')
   const doneTop = topLevel.filter(t => t.status === 'done')

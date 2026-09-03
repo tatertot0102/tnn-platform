@@ -10,6 +10,8 @@ import { format } from 'date-fns'
 import { Hash, Megaphone, MessageCircle, Plus, Link2, Users2, Lock, Mail } from 'lucide-react'
 import { splitBodyWithMentions } from '../lib/chat'
 import MentionChip from '../components/chat/MentionChip'
+import ErrorState from '../components/ui/ErrorState'
+import { useToast } from '../context/ToastContext'
 
 function MessageBody({ body, mentions }) {
   return (
@@ -65,7 +67,9 @@ function ChannelItem({ icon: Icon, label, active, onClick, sub }) {
 
 export default function Chat() {
   const { profile, isExec } = useAuth()
+  const toast = useToast()
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState(false)
   const [channels, setChannels] = useState([])
   const [channelMembers, setChannelMembers] = useState([]) // { channel_id, user_id, profiles }
   const [groups, setGroups] = useState([])
@@ -84,10 +88,8 @@ export default function Chat() {
 
   async function fetchAll() {
     setLoading(true)
-    const [
-      { data: chs }, { data: mems }, { data: grps }, { data: grpMems },
-      { data: allMem }, { data: segs }, { data: subs }, { data: tsks },
-    ] = await Promise.all([
+    setLoadError(false)
+    const results = await Promise.all([
       supabase.from('channels').select('*').order('created_at'),
       supabase.from('channel_members').select('channel_id, user_id, profiles(id, full_name, email, role)'),
       supabase.from('channel_groups').select('*'),
@@ -97,6 +99,18 @@ export default function Chat() {
       supabase.from('subtasks').select('id, title, segment_id'),
       supabase.from('tasks').select('id, title, assignee_ids').is('parent_task_id', null),
     ])
+
+    if (results.some(r => r.error)) {
+      setLoadError(true)
+      toast.error('Could not load chat. Check your connection and retry.')
+      setLoading(false)
+      return
+    }
+
+    const [
+      { data: chs }, { data: mems }, { data: grps }, { data: grpMems },
+      { data: allMem }, { data: segs }, { data: subs }, { data: tsks },
+    ] = results
     setChannels(chs ?? [])
     setChannelMembers(mems ?? [])
     setGroups(grps ?? [])
@@ -114,7 +128,11 @@ export default function Chat() {
     let active = true
 
     supabase.from('messages').select('*').eq('channel_id', selectedId).order('created_at')
-      .then(({ data }) => { if (active) setMessages(data ?? []) })
+      .then(({ data, error }) => {
+        if (!active) return
+        if (error) { toast.error('Could not load messages for this channel.'); return }
+        setMessages(data ?? [])
+      })
 
     const sub = supabase
       .channel(`messages-${selectedId}`)
@@ -161,6 +179,7 @@ export default function Chat() {
   const canPost = !!selected && (isExec || selected.type !== 'announcement')
 
   if (loading) return <div className="flex justify-center py-24"><Spinner size={8} /></div>
+  if (loadError) return <ErrorState message="Could not load chat." onRetry={fetchAll} />
 
   return (
     <div className="flex h-[calc(100vh-4rem)] -m-4 md:-m-8 border-t border-gray-800">

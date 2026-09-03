@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import { sendEmail } from '../../lib/chat'
+import { useToast } from '../../context/ToastContext'
 import EmailComposerPanel from './EmailComposerPanel'
 import { Send, AtSign, Plus, Check, ListChecks } from 'lucide-react'
 
@@ -52,6 +53,7 @@ const TYPE_TAG = {
 export default function MessageComposer({
   channel, channelMembers, allMembers, segments, subtasks, tasks, profile, onSent, disabled, disabledReason,
 }) {
+  const toast = useToast()
   const [text, setText] = useState('')
   const [mentions, setMentions] = useState([])
   const [popover, setPopover] = useState(null) // { start, end, results }
@@ -170,6 +172,8 @@ export default function MessageComposer({
       setText('')
       setMentions([])
       onSent?.(msg)
+    } catch {
+      toast.error('Could not send message.')
     } finally {
       setSending(false)
     }
@@ -192,7 +196,10 @@ export default function MessageComposer({
 
     if (!error) {
       await sendEmail({ to: recipients.map(r => r.email), subject, text: body })
+      toast.success('Email sent.')
       onSent?.(msg)
+    } else {
+      toast.error('Could not send email.')
     }
     setShowEmailPanel(false)
   }

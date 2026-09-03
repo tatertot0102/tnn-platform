@@ -2,8 +2,11 @@ import { useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import Modal from '../ui/Modal'
 import Spinner from '../ui/Spinner'
+import PeopleDropdown from '../ui/PeopleDropdown'
+import { useToast } from '../../context/ToastContext'
 
 export default function NewChannelModal({ open, onClose, members, profile, onCreated }) {
+  const toast = useToast()
   const [name, setName] = useState('')
   const [type, setType] = useState('channel')
   const [audience, setAudience] = useState('everyone')
@@ -24,7 +27,7 @@ export default function NewChannelModal({ open, onClose, members, profile, onCre
       .select()
       .single()
 
-    if (error || !channel) { setSaving(false); return }
+    if (error || !channel) { setSaving(false); toast.error('Could not create the channel.'); return }
 
     let memberIds
     if (audience === 'everyone') memberIds = members.map(m => m.id)
@@ -33,7 +36,8 @@ export default function NewChannelModal({ open, onClose, members, profile, onCre
 
     if (!memberIds.includes(profile.id)) memberIds = [...memberIds, profile.id]
 
-    await supabase.from('channel_members').insert(memberIds.map(user_id => ({ channel_id: channel.id, user_id })))
+    const { error: memberError } = await supabase.from('channel_members').insert(memberIds.map(user_id => ({ channel_id: channel.id, user_id })))
+    if (memberError) toast.error('Channel created, but not everyone could be added.')
 
     setSaving(false)
     onCreated(channel)
@@ -83,18 +87,12 @@ export default function NewChannelModal({ open, onClose, members, profile, onCre
             ))}
           </div>
           {audience === 'specific' && (
-            <div className="flex flex-wrap gap-2 p-2 bg-gray-800 rounded-lg max-h-40 overflow-y-auto">
-              {members.map(m => (
-                <button
-                  key={m.id}
-                  type="button"
-                  onClick={() => setSpecificIds(ids => ids.includes(m.id) ? ids.filter(x => x !== m.id) : [...ids, m.id])}
-                  className={`text-xs px-2 py-1 rounded-md transition-colors ${specificIds.includes(m.id) ? 'bg-brand-600 text-white' : 'bg-gray-700 text-gray-400 hover:text-gray-200'}`}
-                >
-                  {m.full_name}
-                </button>
-              ))}
-            </div>
+            <PeopleDropdown
+              options={members.map(m => ({ id: m.id, label: m.full_name }))}
+              selectedIds={specificIds}
+              onChange={setSpecificIds}
+              placeholder="Search people..."
+            />
           )}
         </div>
 

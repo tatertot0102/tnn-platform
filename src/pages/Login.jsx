@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import Spinner from '../components/ui/Spinner'
 import { getAppUrl } from '../lib/siteUrl'
+import tnnLogo from '../assets/tnn-logo.svg'
 
 export default function Login() {
   const { signIn, signUp } = useAuth()
@@ -65,8 +66,8 @@ export default function Login() {
       <div className="w-full max-w-sm">
         {/* Logo */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-brand-600 mb-4">
-            <span className="text-white font-black text-2xl">T</span>
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-white mb-4 p-2.5 shadow-lg shadow-black/40">
+            <img src={tnnLogo} alt="TNN" className="w-full h-full object-contain" />
           </div>
           <h1 className="text-2xl font-bold text-white">TNN Platform</h1>
           <p className="text-gray-400 text-sm mt-1">Tech News Network</p>

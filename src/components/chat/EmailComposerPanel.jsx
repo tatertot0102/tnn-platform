@@ -1,16 +1,13 @@
 import { useState } from 'react'
-import { Mail, X, Send, Check } from 'lucide-react'
+import { Mail, X, Send } from 'lucide-react'
 import Spinner from '../ui/Spinner'
+import PeopleDropdown from '../ui/PeopleDropdown'
 
 export default function EmailComposerPanel({ channelMembers, onSend, onCancel }) {
   const [subject, setSubject] = useState('')
   const [body, setBody] = useState('')
   const [recipientIds, setRecipientIds] = useState(channelMembers.map(m => m.id))
   const [sending, setSending] = useState(false)
-
-  function toggleRecipient(id) {
-    setRecipientIds(ids => ids.includes(id) ? ids.filter(x => x !== id) : [...ids, id])
-  }
 
   async function handleSend() {
     if (!subject.trim() || !body.trim() || recipientIds.length === 0 || sending) return
@@ -45,21 +42,12 @@ export default function EmailComposerPanel({ channelMembers, onSend, onCancel })
 
         <div>
           <p className="text-[11px] text-gray-500 mb-1.5">Recipients ({recipientIds.length})</p>
-          <div className="flex flex-wrap gap-1.5 p-2 bg-gray-800 rounded-lg max-h-28 overflow-y-auto">
-            {channelMembers.map(m => {
-              const checked = recipientIds.includes(m.id)
-              return (
-                <button
-                  key={m.id}
-                  type="button"
-                  onClick={() => toggleRecipient(m.id)}
-                  className={`flex items-center gap-1 text-xs px-2 py-1 rounded-md transition-colors ${checked ? 'bg-brand-600 text-white' : 'bg-gray-700 text-gray-400 hover:text-gray-200'}`}
-                >
-                  {checked && <Check size={11} />} {m.full_name}
-                </button>
-              )
-            })}
-          </div>
+          <PeopleDropdown
+            options={channelMembers.map(m => ({ id: m.id, label: m.full_name }))}
+            selectedIds={recipientIds}
+            onChange={setRecipientIds}
+            placeholder="Search channel members..."
+          />
         </div>
 
         <textarea

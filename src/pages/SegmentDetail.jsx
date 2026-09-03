@@ -4,6 +4,8 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { PriorityBadge, StatusBadge, DeptBadge } from '../components/ui/Badge'
 import Spinner from '../components/ui/Spinner'
+import ErrorState from '../components/ui/ErrorState'
+import { useToast } from '../context/ToastContext'
 import Modal from '../components/ui/Modal'
 import { PRIORITIES, STATUSES, DEPARTMENTS, PRIMARY_ROLES, SECONDARY_ROLES } from '../lib/constants'
 import { format, isBefore, isToday } from 'date-fns'
@@ -426,6 +428,8 @@ export default function SegmentDetail() {
   const [roles, setRoles]           = useState([])
   const [members, setMembers]       = useState([])
   const [loading, setLoading]       = useState(true)
+  const [loadError, setLoadError]   = useState(false)
+  const toast = useToast()
   const [saving, setSaving]         = useState(false)
   const [activeTab, setActiveTab]   = useState(searchParams.get('tab') === 'subtasks' ? 'subtasks' : 'overview')
   const [showGuestModal, setShowGuestModal]   = useState(false)
@@ -465,15 +469,26 @@ export default function SegmentDetail() {
 
   async function fetchAll() {
     setLoading(true)
-    const [{ data: segment }, { data: subs }, { data: miles }, { data: segRoles }, { data: allMembers }, { data: linkedVideos }] =
-      await Promise.all([
-        supabase.from('segments').select('*').eq('id', id).single(),
-        supabase.from('subtasks').select('*').eq('segment_id', id).order('position').order('created_at'),
-        supabase.from('milestones').select('*').eq('segment_id', id).order('position').order('created_at'),
-        supabase.from('segment_roles').select('*, profiles(full_name, id)').eq('segment_id', id),
-        supabase.from('profiles').select('id, full_name, role'),
-        supabase.from('videos').select('*').eq('segment_id', id).order('updated_at', { ascending: false }).limit(1),
-      ])
+    setLoadError(false)
+    const [
+      { data: segment, error: segError }, { data: subs, error: subError }, { data: miles, error: mileError },
+      { data: segRoles, error: roleError }, { data: allMembers, error: memberError }, { data: linkedVideos },
+    ] = await Promise.all([
+      supabase.from('segments').select('*').eq('id', id).single(),
+      supabase.from('subtasks').select('*').eq('segment_id', id).order('position').order('created_at'),
+      supabase.from('milestones').select('*').eq('segment_id', id).order('position').order('created_at'),
+      supabase.from('segment_roles').select('*, profiles(full_name, id)').eq('segment_id', id),
+      supabase.from('profiles').select('id, full_name, role'),
+      supabase.from('videos').select('*').eq('segment_id', id).order('updated_at', { ascending: false }).limit(1),
+    ])
+
+    // segError covers "not found" too (.single() with no row) — handled below via !seg, not as a hard error.
+    if (subError || mileError || roleError || memberError) {
+      setLoadError(true)
+      setLoading(false)
+      return
+    }
+
     setSeg(segment)
     setSubtasks(subs ?? [])
     setMilestones(miles ?? [])
@@ -491,7 +506,8 @@ export default function SegmentDetail() {
   async function updateSeg(field, value) {
     if (!canEdit) return
     setSaving(true)
-    await supabase.from('segments').update({ [field]: value }).eq('id', id)
+    const { error } = await supabase.from('segments').update({ [field]: value }).eq('id', id)
+    if (error) { toast.error('Could not save changes.'); setSaving(false); return }
     setSeg(s => ({ ...s, [field]: value }))
     setSaving(false)
   }
@@ -499,7 +515,8 @@ export default function SegmentDetail() {
   async function deleteSegment() {
     if (!isExec) return
     if (!confirm(`Delete "${seg.title}"? Cannot be undone.`)) return
-    await supabase.from('segments').delete().eq('id', id)
+    const { error } = await supabase.from('segments').delete().eq('id', id)
+    if (error) { toast.error('Could not delete segment.'); return }
     navigate('/segments')
   }
 
@@ -724,6 +741,7 @@ export default function SegmentDetail() {
   }
 
   if (loading) return <div className="flex justify-center py-24"><Spinner size={8} /></div>
+  if (loadError) return <ErrorState message="Could not load this segment." onRetry={fetchAll} />
   if (!seg)    return <p className="text-gray-400">Segment not found.</p>
 
   const permanentRoles   = roles.filter(r => !r.is_guest)

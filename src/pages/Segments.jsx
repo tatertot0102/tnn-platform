@@ -6,6 +6,8 @@ import { PriorityBadge, StatusBadge, DeptBadge } from '../components/ui/Badge'
 import PageHeader from '../components/ui/PageHeader'
 import Modal from '../components/ui/Modal'
 import Spinner from '../components/ui/Spinner'
+import ErrorState from '../components/ui/ErrorState'
+import { useToast } from '../context/ToastContext'
 import { PRIORITIES, STATUSES, DEPARTMENTS } from '../lib/constants'
 import { format } from 'date-fns'
 import { Plus, Search, Trash2 } from 'lucide-react'
@@ -109,8 +111,10 @@ function CreateSegmentModal({ open, onClose, onCreated }) {
 
 export default function Segments() {
   const { isExec } = useAuth()
+  const toast = useToast()
   const [segments, setSegments]     = useState([])
   const [loading, setLoading]       = useState(true)
+  const [loadError, setLoadError]   = useState(false)
   const [search, setSearch]         = useState('')
   const [filterStatus, setFilterStatus]     = useState('')
   const [filterPriority, setFilterPriority] = useState('')
@@ -121,10 +125,12 @@ export default function Segments() {
 
   async function fetchSegments() {
     setLoading(true)
-    const { data } = await supabase
+    setLoadError(false)
+    const { data, error } = await supabase
       .from('segments')
       .select('*, segment_roles(user_id, role_type, profiles(full_name))')
       .order('due_date', { ascending: true })
+    if (error) { setLoadError(true); setLoading(false); return }
     setSegments(data ?? [])
     setLoading(false)
   }
@@ -132,7 +138,8 @@ export default function Segments() {
   async function deleteSegment(id) {
     if (!confirm('Delete this segment? All subtasks, roles, and milestones will be deleted. This cannot be undone.')) return
     setDeletingId(id)
-    await supabase.from('segments').delete().eq('id', id)
+    const { error } = await supabase.from('segments').delete().eq('id', id)
+    if (error) { toast.error('Could not delete segment.'); setDeletingId(null); return }
     setSegments(s => s.filter(x => x.id !== id))
     setDeletingId(null)
   }
@@ -172,6 +179,8 @@ export default function Segments() {
 
       {loading ? (
         <div className="flex justify-center py-16"><Spinner size={8} /></div>
+      ) : loadError ? (
+        <ErrorState message="Could not load segments." onRetry={fetchSegments} />
       ) : (
         <div className="card overflow-hidden">
           <table className="w-full text-sm">

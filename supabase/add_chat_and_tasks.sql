@@ -14,6 +14,7 @@ alter table public.tasks
   add column if not exists exec_only boolean not null default false;
 
 drop policy if exists "Tasks viewable by authenticated users" on public.tasks;
+drop policy if exists "Tasks viewable respecting exec_only" on public.tasks;
 create policy "Tasks viewable respecting exec_only"
   on public.tasks for select
   using (
@@ -50,17 +51,6 @@ as $$
   );
 $$;
 
--- security definer so channel_members' own RLS policies can check membership
--- without querying channel_members from inside its own policy (which Postgres
--- rejects with "infinite recursion detected in policy").
-create or replace function public.is_channel_member(cid uuid, uid uuid)
-returns boolean language sql stable security definer set search_path = public
-as $$
-  select exists (
-    select 1 from public.channel_members where channel_id = cid and user_id = uid
-  );
-$$;
-
 -- Channels: DMs, regular channels, and read-only announcement channels.
 -- A channel can optionally be linked to a segment (auto-created per segment).
 create table if not exists public.channels (
@@ -74,26 +64,6 @@ create table if not exists public.channels (
 );
 alter table public.channels enable row level security;
 
-create policy "Channels viewable by members or execs"
-  on public.channels for select
-  using (
-    public.is_exec(auth.uid())
-    or public.is_channel_member(channels.id, auth.uid())
-  );
-
-create policy "Execs create channels, anyone can start a DM"
-  on public.channels for insert
-  with check (type = 'dm' or public.is_exec(auth.uid()));
-
-create policy "Execs can update channels"
-  on public.channels for update
-  using (public.is_exec(auth.uid()));
-
-create policy "Execs can delete channels"
-  on public.channels for delete
-  using (public.is_exec(auth.uid()));
-
-
 create table if not exists public.channel_members (
   id           uuid default gen_random_uuid() primary key,
   channel_id   uuid references public.channels(id) on delete cascade not null,
@@ -103,6 +73,41 @@ create table if not exists public.channel_members (
 );
 alter table public.channel_members enable row level security;
 
+-- security definer so channel_members' own RLS policies can check membership
+-- without querying channel_members from inside its own policy (which Postgres
+-- rejects with "infinite recursion detected in policy").
+create or replace function public.is_channel_member(cid uuid, uid uuid)
+returns boolean language sql stable security definer set search_path = public
+as $$
+  select exists (
+    select 1 from public.channel_members where channel_id = cid and user_id = uid
+  );
+$$;
+
+drop policy if exists "Channels viewable by members or execs" on public.channels;
+create policy "Channels viewable by members or execs"
+  on public.channels for select
+  using (
+    public.is_exec(auth.uid())
+    or public.is_channel_member(channels.id, auth.uid())
+  );
+
+drop policy if exists "Execs create channels, anyone can start a DM" on public.channels;
+create policy "Execs create channels, anyone can start a DM"
+  on public.channels for insert
+  with check (type = 'dm' or public.is_exec(auth.uid()));
+
+drop policy if exists "Execs can update channels" on public.channels;
+create policy "Execs can update channels"
+  on public.channels for update
+  using (public.is_exec(auth.uid()));
+
+drop policy if exists "Execs can delete channels" on public.channels;
+create policy "Execs can delete channels"
+  on public.channels for delete
+  using (public.is_exec(auth.uid()));
+
+drop policy if exists "Channel members viewable by members or execs" on public.channel_members;
 create policy "Channel members viewable by members or execs"
   on public.channel_members for select
   using (
@@ -110,6 +115,7 @@ create policy "Channel members viewable by members or execs"
     or public.is_channel_member(channel_members.channel_id, auth.uid())
   );
 
+drop policy if exists "Members can add people to channels they're in" on public.channel_members;
 create policy "Members can add people to channels they're in"
   on public.channel_members for insert
   with check (
@@ -117,6 +123,7 @@ create policy "Members can add people to channels they're in"
     or public.is_channel_member(channel_members.channel_id, auth.uid())
   );
 
+drop policy if exists "Execs or self can remove membership" on public.channel_members;
 create policy "Execs or self can remove membership"
   on public.channel_members for delete
   using (public.is_exec(auth.uid()) or user_id = auth.uid());
@@ -132,10 +139,12 @@ create table if not exists public.channel_groups (
 );
 alter table public.channel_groups enable row level security;
 
+drop policy if exists "Channel groups viewable by authenticated users" on public.channel_groups;
 create policy "Channel groups viewable by authenticated users"
   on public.channel_groups for select
   using (auth.role() = 'authenticated');
 
+drop policy if exists "Execs manage channel groups" on public.channel_groups;
 create policy "Execs manage channel groups"
   on public.channel_groups for all
   using (public.is_exec(auth.uid()));
@@ -147,10 +156,12 @@ create table if not exists public.channel_group_members (
 );
 alter table public.channel_group_members enable row level security;
 
+drop policy if exists "Channel group members viewable by authenticated users" on public.channel_group_members;
 create policy "Channel group members viewable by authenticated users"
   on public.channel_group_members for select
   using (auth.role() = 'authenticated');
 
+drop policy if exists "Execs manage channel group members" on public.channel_group_members;
 create policy "Execs manage channel group members"
   on public.channel_group_members for all
   using (public.is_exec(auth.uid()));
@@ -168,6 +179,7 @@ create table if not exists public.messages (
 );
 alter table public.messages enable row level security;
 
+drop policy if exists "Messages viewable by channel members or execs" on public.messages;
 create policy "Messages viewable by channel members or execs"
   on public.messages for select
   using (
@@ -175,6 +187,7 @@ create policy "Messages viewable by channel members or execs"
     or public.is_channel_member(messages.channel_id, auth.uid())
   );
 
+drop policy if exists "Members can post unless channel is read-only for them" on public.messages;
 create policy "Members can post unless channel is read-only for them"
   on public.messages for insert
   with check (
@@ -189,6 +202,7 @@ create policy "Members can post unless channel is read-only for them"
     )
   );
 
+drop policy if exists "Senders or execs can delete messages" on public.messages;
 create policy "Senders or execs can delete messages"
   on public.messages for delete
   using (sender_id = auth.uid() or public.is_exec(auth.uid()));

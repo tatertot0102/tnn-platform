@@ -1,22 +1,27 @@
-// Sends email via the Gmail API using a Google service account with
-// domain-wide delegation — free, since it rides on the Google Workspace
-// account rather than a third-party transactional email provider.
+// Sends email via the Gmail API using a regular Google account's OAuth
+// refresh token — free, works with a personal/free Gmail account (no
+// Google Workspace required, unlike service-account domain-wide delegation).
 //
 // Required secrets (set with `supabase secrets set`):
-//   GOOGLE_SERVICE_ACCOUNT_EMAIL     the service account's client_email
-//   GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY  the service account's private_key (PEM, \n escaped is fine)
-//   GMAIL_SENDER                     the Workspace address to send as, e.g. notifications@bthstnn.org
+//   GOOGLE_OAUTH_CLIENT_ID       from a Google Cloud OAuth client (type: Web application)
+//   GOOGLE_OAUTH_CLIENT_SECRET   from the same OAuth client
+//   GOOGLE_OAUTH_REFRESH_TOKEN   obtained once via a consent flow for the sending Gmail account
+//   GMAIL_SENDER                the Gmail address the refresh token belongs to, e.g. bthstnn@gmail.com
 //
-// Setup (one-time, in Google Cloud + Workspace admin — cannot be done from here):
-//   1. Create a Google Cloud project, enable the Gmail API.
-//   2. Create a service account, generate a JSON key.
-//   3. In Workspace Admin > Security > API controls > Domain-wide delegation,
-//      add the service account's Client ID with scope:
-//      https://www.googleapis.com/auth/gmail.send
-//   4. Set the three secrets above from the JSON key + the sending address.
+// One-time setup (cannot be done from here — see chat for the walkthrough):
+//   1. Google Cloud Console: enable the Gmail API, create an OAuth client
+//      (type: Web application), add https://developers.google.com/oauthplayground
+//      as an authorized redirect URI.
+//   2. Use OAuth Playground (with your own client ID/secret) to authorize
+//      scope https://www.googleapis.com/auth/gmail.send as the TNN Gmail
+//      account, then exchange the code for a refresh token.
+//   3. Set the OAuth consent screen's publishing status to "In production"
+//      so the refresh token doesn't expire after 7 days.
+//   4. Set the four secrets above.
 
-const GOOGLE_SERVICE_ACCOUNT_EMAIL = Deno.env.get('GOOGLE_SERVICE_ACCOUNT_EMAIL')
-const GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY = Deno.env.get('GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY')
+const GOOGLE_OAUTH_CLIENT_ID = Deno.env.get('GOOGLE_OAUTH_CLIENT_ID')
+const GOOGLE_OAUTH_CLIENT_SECRET = Deno.env.get('GOOGLE_OAUTH_CLIENT_SECRET')
+const GOOGLE_OAUTH_REFRESH_TOKEN = Deno.env.get('GOOGLE_OAUTH_REFRESH_TOKEN')
 const GMAIL_SENDER = Deno.env.get('GMAIL_SENDER')
 
 const DEFAULT_ALLOWED_ORIGINS = [
@@ -47,58 +52,19 @@ function base64url(bytes: Uint8Array | string) {
   return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
 }
 
-function pemToArrayBuffer(pem: string): ArrayBuffer {
-  const normalized = pem.replace(/\\n/g, '\n')
-  const b64 = normalized
-    .replace('-----BEGIN PRIVATE KEY-----', '')
-    .replace('-----END PRIVATE KEY-----', '')
-    .replace(/\s/g, '')
-  const binary = atob(b64)
-  const bytes = new Uint8Array(binary.length)
-  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
-  return bytes.buffer
-}
-
 async function getAccessToken(): Promise<string> {
-  if (!GOOGLE_SERVICE_ACCOUNT_EMAIL || !GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY || !GMAIL_SENDER) {
-    throw new Error('Gmail sending is not configured (missing service account secrets)')
+  if (!GOOGLE_OAUTH_CLIENT_ID || !GOOGLE_OAUTH_CLIENT_SECRET || !GOOGLE_OAUTH_REFRESH_TOKEN || !GMAIL_SENDER) {
+    throw new Error('Gmail sending is not configured (missing OAuth secrets)')
   }
-
-  const header = { alg: 'RS256', typ: 'JWT' }
-  const now = Math.floor(Date.now() / 1000)
-  const claim = {
-    iss: GOOGLE_SERVICE_ACCOUNT_EMAIL,
-    scope: 'https://www.googleapis.com/auth/gmail.send',
-    aud: 'https://oauth2.googleapis.com/token',
-    sub: GMAIL_SENDER,
-    iat: now,
-    exp: now + 3600,
-  }
-
-  const signingInput = `${base64url(JSON.stringify(header))}.${base64url(JSON.stringify(claim))}`
-
-  const key = await crypto.subtle.importKey(
-    'pkcs8',
-    pemToArrayBuffer(GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY),
-    { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' },
-    false,
-    ['sign']
-  )
-
-  const signature = await crypto.subtle.sign(
-    'RSASSA-PKCS1-v1_5',
-    key,
-    new TextEncoder().encode(signingInput)
-  )
-
-  const jwt = `${signingInput}.${base64url(new Uint8Array(signature))}`
 
   const res = await fetch('https://oauth2.googleapis.com/token', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({
-      grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
-      assertion: jwt,
+      client_id: GOOGLE_OAUTH_CLIENT_ID,
+      client_secret: GOOGLE_OAUTH_CLIENT_SECRET,
+      refresh_token: GOOGLE_OAUTH_REFRESH_TOKEN,
+      grant_type: 'refresh_token',
     }),
   })
 
@@ -126,17 +92,14 @@ async function sendGmail(to: string[], subject: string, text: string) {
   const accessToken = await getAccessToken()
   const raw = buildRawMessage({ to, subject, text })
 
-  const res = await fetch(
-    `https://gmail.googleapis.com/gmail/v1/users/${encodeURIComponent(GMAIL_SENDER!)}/messages/send`,
-    {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ raw }),
-    }
-  )
+  const res = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ raw }),
+  })
 
   const data = await res.json()
   if (!res.ok) throw new Error(`Gmail send error: ${JSON.stringify(data)}`)

@@ -1,8 +1,9 @@
 import { NavLink, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
+import { useNotifications } from '../../context/NotificationsContext'
 import {
   LayoutDashboard, Film, CheckSquare, BarChart2,
-  Users, Settings, LogOut, Menu, X, UserCircle, ExternalLink, MessageSquare
+  Users, Settings, LogOut, Menu, X, UserCircle, ExternalLink, MessageSquare, Bell
 } from 'lucide-react'
 import { useState } from 'react'
 import tnnLogo from '../../assets/tnn-logo.svg'
@@ -18,6 +19,7 @@ const PUBLIC_CMS_URL = 'https://bthstnn.org/#/newsroom'
 
 export default function Sidebar() {
   const { profile, signOut, isExec, canViewsAccess } = useAuth()
+  const { unreadCount } = useNotifications()
   const navigate = useNavigate()
   const [open, setOpen] = useState(false)
 
@@ -82,6 +84,15 @@ export default function Sidebar() {
       </nav>
 
       <div className="px-3 py-4 border-t border-gray-800 space-y-1">
+        <NavLink to="/notifications" className={linkClass} onClick={() => setOpen(false)}>
+          <Bell size={16} />
+          <span className="flex-1">Notifications</span>
+          {unreadCount > 0 && (
+            <span className="bg-red-500 text-white text-[10px] font-bold rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1">
+              {unreadCount > 9 ? '9+' : unreadCount}
+            </span>
+          )}
+        </NavLink>
         <NavLink to="/profile" className={linkClass} onClick={() => setOpen(false)}>
           <UserCircle size={16} />My Profile
         </NavLink>

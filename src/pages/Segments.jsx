@@ -182,7 +182,48 @@ export default function Segments() {
       ) : loadError ? (
         <ErrorState message="Could not load segments." onRetry={fetchSegments} />
       ) : (
-        <div className="card overflow-x-auto">
+        <>
+        {/* Mobile: cards */}
+        <div className="md:hidden space-y-2">
+          {filtered.length === 0 && <p className="text-center text-gray-500 py-12 text-sm">No segments found</p>}
+          {filtered.map(seg => (
+            <Link key={seg.id} to={`/segments/${seg.id}`} className="card p-4 flex flex-col gap-2 hover:border-gray-700 transition-colors">
+              <div className="flex items-start justify-between gap-2">
+                <p className="text-gray-100 font-medium">{seg.title}</p>
+                {isExec && (
+                  <button
+                    onClick={e => { e.preventDefault(); deleteSegment(seg.id) }}
+                    disabled={deletingId === seg.id}
+                    className="text-gray-700 hover:text-red-400 transition-colors flex-shrink-0"
+                  >
+                    {deletingId === seg.id ? <Spinner size={4} /> : <Trash2 size={14} />}
+                  </button>
+                )}
+              </div>
+              <div className="flex flex-wrap items-center gap-1.5">
+                <PriorityBadge value={seg.priority} />
+                <StatusBadge value={seg.status} />
+                {seg.departments?.map(d => <DeptBadge key={d} value={d} />)}
+              </div>
+              <div className="flex items-center justify-between">
+                <div className="flex -space-x-1">
+                  {[...new Map(seg.segment_roles?.map(r => [r.user_id, r])).values()].slice(0, 4).map((r, i) => (
+                    <div key={i} title={r.profiles?.full_name}
+                      className="w-6 h-6 rounded-full bg-brand-600 border-2 border-gray-900 flex items-center justify-center text-xs text-white font-bold">
+                      {r.profiles?.full_name?.[0] ?? '?'}
+                    </div>
+                  ))}
+                </div>
+                <span className="text-gray-500 text-xs">
+                  {seg.due_date ? format(new Date(seg.due_date), 'MMM d, yyyy') : '—'}
+                </span>
+              </div>
+            </Link>
+          ))}
+        </div>
+
+        {/* Desktop: table */}
+        <div className="hidden md:block card overflow-x-auto">
           <table className="w-full text-sm min-w-[720px]">
             <thead>
               <tr className="border-b border-gray-800">
@@ -235,6 +276,7 @@ export default function Segments() {
             </tbody>
           </table>
         </div>
+        </>
       )}
 
       <CreateSegmentModal open={showCreate} onClose={() => setShowCreate(false)} onCreated={fetchSegments} />

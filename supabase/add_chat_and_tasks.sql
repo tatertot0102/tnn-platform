@@ -90,6 +90,11 @@ create policy "Channels viewable by members or execs"
   using (
     public.is_exec(auth.uid())
     or public.is_channel_member(channels.id, auth.uid())
+    -- lets the creator see a channel they just made, before the follow-up
+    -- insert into channel_members lands — otherwise INSERT ... RETURNING *
+    -- fails with a misleading "row violates row-level security policy"
+    -- error, because the RETURNING clause is filtered by this same policy.
+    or channels.created_by = auth.uid()
   );
 
 drop policy if exists "Execs create channels, anyone can start a DM" on public.channels;

@@ -26,6 +26,7 @@ In the root of this project, create a file called `.env`:
 ```
 VITE_SUPABASE_URL=https://your-project-id.supabase.co
 VITE_SUPABASE_ANON_KEY=your-anon-key-here
+VITE_SITE_URL=http://platform.bthstnn.org
 ```
 (Never commit this file — it's already in .gitignore)
 
@@ -34,7 +35,7 @@ VITE_SUPABASE_ANON_KEY=your-anon-key-here
 npm install
 npm run dev
 ```
-Open http://localhost:5173/tnn-platform/
+Open http://localhost:5173/
 
 ### 6. Make the first exec account
 1. Sign up at the login page with your email
@@ -44,13 +45,22 @@ Open http://localhost:5173/tnn-platform/
 
 ---
 
-## Deploying to GitHub Pages
+## Deploying to the custom domain
 
 ### First time setup
 1. Create a GitHub repo named `tnn-platform`
-2. In `vite.config.js`, the `base` is already set to `/tnn-platform/`
-3. In `package.json`, update `homepage` to `https://YOUR_USERNAME.github.io/tnn-platform`
-4. Push your code:
+2. Point the custom domain at your static host and configure it as `platform.bthstnn.org`
+3. In Supabase Auth settings, add these redirect URLs:
+```
+http://platform.bthstnn.org/login
+http://platform.bthstnn.org/reset-password
+```
+4. Set the Supabase Edge Function secrets for Slack notifications:
+```
+SITE_URL=http://platform.bthstnn.org
+ALLOWED_ORIGINS=http://platform.bthstnn.org
+```
+5. Push your code:
 ```bash
 git init
 git add .
@@ -64,7 +74,7 @@ git push -u origin main
 npm run deploy
 ```
 This builds the app and pushes to the `gh-pages` branch automatically.
-Your app will be live at: `https://YOUR_USERNAME.github.io/tnn-platform`
+Your app will be live at: `http://platform.bthstnn.org/`
 
 ### Re-deploying after changes
 Just run `npm run deploy` again anytime you make changes.
@@ -115,4 +125,3 @@ supabase/
 
 Members sign up themselves at the login page. By default they get `member` role.
 To promote someone to exec, go to **Supabase → Table Editor → profiles** and change their role to `exec`.
-

@@ -6,7 +6,8 @@ import { PriorityBadge, StatusBadge, DeptBadge } from '../components/ui/Badge'
 import PageHeader from '../components/ui/PageHeader'
 import Spinner from '../components/ui/Spinner'
 import { format, isAfter, isBefore, addDays } from 'date-fns'
-import { AlertTriangle, Clock, Film, CheckSquare } from 'lucide-react'
+import { AlertTriangle, Clock, Film, CheckSquare, Bell } from 'lucide-react'
+import SlackReminderModal from '../components/dashboard/SlackReminderModal'
 
 function StatCard({ icon: Icon, label, value, color = 'text-brand-400' }) {
   return (
@@ -27,6 +28,7 @@ export default function Dashboard() {
   const [segments, setSegments] = useState([])
   const [tasks, setTasks]       = useState([])
   const [loading, setLoading]   = useState(true)
+  const [showReminder, setShowReminder] = useState(false)
 
   useEffect(() => { fetchData() }, [profile])
 
@@ -80,10 +82,24 @@ export default function Dashboard() {
 
   return (
     <div>
+      <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+        <div className="inline-flex rounded-full border border-purple-500/30 bg-purple-500/10 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide text-purple-200">
+          Production Platform
+        </div>
+        {isExec && (
+          <button
+            onClick={() => setShowReminder(true)}
+            className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-200 border border-gray-800 hover:border-gray-700 rounded-lg px-2.5 py-1.5 transition-colors"
+          >
+            <Bell size={12} /> Send Slack Reminder
+          </button>
+        )}
+      </div>
       <PageHeader
         title={`Hey, ${profile?.full_name?.split(' ')[0] ?? 'there'} 👋`}
-        subtitle={isExec ? "Here's the TNN overview" : 'Your assignments and tasks'}
+        subtitle={isExec ? 'Segments, tasks, assignments, deadlines, and production workflow.' : 'Your assignments and tasks live here. Public publishing happens in the Public CMS.'}
       />
+      <SlackReminderModal open={showReminder} onClose={() => setShowReminder(false)} />
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
         <StatCard icon={Film}          label={isExec ? 'Total Segments' : 'My Segments'} value={segments.length} color="text-brand-400" />
         <StatCard icon={CheckSquare}   label="Open Tasks"    value={tasks.length}    color="text-teal-400" />

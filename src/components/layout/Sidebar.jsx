@@ -2,7 +2,7 @@ import { NavLink, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import {
   LayoutDashboard, Film, CheckSquare, BarChart2,
-  Users, Settings, LogOut, Bell, Menu, X, UserCircle
+  Users, Settings, LogOut, Menu, X, UserCircle, ExternalLink, MessageSquare
 } from 'lucide-react'
 import { useState } from 'react'
 
@@ -10,7 +10,10 @@ const baseNavItems = [
   { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/segments',  icon: Film,            label: 'Segments' },
   { to: '/tasks',     icon: CheckSquare,     label: 'Tasks' },
+  { to: '/chat',      icon: MessageSquare,   label: 'Chat' },
 ]
+
+const PUBLIC_CMS_URL = 'https://bthstnn.org/#/newsroom'
 
 export default function Sidebar() {
   const { profile, signOut, isExec, canViewsAccess } = useAuth()
@@ -31,7 +34,6 @@ export default function Sidebar() {
 
   const execItems = [
     isExec && { to: '/members',   icon: Users,     label: 'Members' },
-    isExec && { to: '/reminders', icon: Bell,      label: 'Reminders' },
     isExec && { to: '/settings',  icon: Settings,  label: 'Settings' },
   ].filter(Boolean)
 
@@ -44,8 +46,11 @@ export default function Sidebar() {
           </div>
           <div>
             <p className="font-bold text-white text-sm">TNN</p>
-            <p className="text-gray-500 text-xs">News Network</p>
+            <p className="text-gray-500 text-xs">Production Platform</p>
           </div>
+        </div>
+        <div className="mt-3 inline-flex rounded-full border border-purple-500/30 bg-purple-500/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-purple-200">
+          Production Platform
         </div>
       </div>
 
@@ -67,6 +72,15 @@ export default function Sidebar() {
             ))}
           </>
         )}
+        <a
+          href={PUBLIC_CMS_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium text-gray-400 hover:text-gray-100 hover:bg-gray-800 transition-colors"
+          onClick={() => setOpen(false)}
+        >
+          <ExternalLink size={16} /> Public CMS
+        </a>
       </nav>
 
       <div className="px-3 py-4 border-t border-gray-800 space-y-1">

@@ -1,4 +1,4 @@
-import { HashRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import AppLayout from './components/layout/AppLayout'
 import Login from './pages/Login'
@@ -11,7 +11,7 @@ import Members from './pages/Members'
 import Settings from './pages/Settings'
 import Notifications from './pages/Notifications'
 import Profile from './pages/Profile'
-import Reminders from './pages/Reminders'
+import Chat from './pages/Chat'
 import Spinner from './components/ui/Spinner'
 import ResetPassword from './pages/ResetPassword'
 
@@ -47,11 +47,11 @@ function AppRoutes() {
         <Route path="/segments"      element={<Segments />} />
         <Route path="/segments/:id"  element={<SegmentDetail />} />
         <Route path="/tasks"         element={<Tasks />} />
+        <Route path="/chat"          element={<Chat />} />
         <Route path="/notifications" element={<Notifications />} />
         <Route path="/profile"       element={<Profile />} />
         <Route path="/views"         element={<ProtectedRoute viewsOnly><Views /></ProtectedRoute>} />
         <Route path="/members"       element={<ProtectedRoute execOnly><Members /></ProtectedRoute>} />
-        <Route path="/reminders"     element={<ProtectedRoute execOnly><Reminders /></ProtectedRoute>} />
         <Route path="/settings"      element={<ProtectedRoute execOnly><Settings /></ProtectedRoute>} />
       </Route>
       <Route path="*" element={<Navigate to="/dashboard" replace />} />
@@ -61,10 +61,10 @@ function AppRoutes() {
 
 export default function App() {
   return (
-    <HashRouter>
+    <BrowserRouter>
       <AuthProvider>
         <AppRoutes />
       </AuthProvider>
-    </HashRouter>
+    </BrowserRouter>
   )
 }

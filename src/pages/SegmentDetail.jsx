@@ -17,6 +17,51 @@ import {
 import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 
+const PUBLIC_CMS_VIDEO_URL = 'https://bthstnn.org/#/newsroom/videos'
+const PUBLIC_STORY_URL = 'https://bthstnn.org/#/videos/story'
+
+function slugify(value = '') {
+  return String(value || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 80)
+}
+
+function buildPublicCredits(roles = []) {
+  const grouped = new Map()
+
+  roles.forEach(role => {
+    const key = role.user_id || role.profiles?.full_name || role.id
+    if (!key) return
+
+    const existing = grouped.get(key) || {
+      profile_id: role.user_id || '',
+      name: role.profiles?.full_name || '',
+      roles: [],
+      show: true,
+    }
+
+    if (role.role_type && !existing.roles.includes(role.role_type)) {
+      existing.roles.push(role.role_type)
+    }
+
+    grouped.set(key, existing)
+  })
+
+  return [...grouped.values()].map(credit => ({
+    ...credit,
+    role: credit.roles.join(', '),
+  }))
+}
+
+function publicVideoStatus(video) {
+  if (!video) return { label: 'Not sent to CMS', className: 'bg-gray-800 text-gray-300' }
+  if (video.published || video.publish_status === 'published') return { label: 'Published', className: 'bg-green-900 text-green-300' }
+  if (video.upload_status === 'published' && video.href && video.href !== '#pending-upload') return { label: 'Ready / uploaded', className: 'bg-blue-900 text-blue-300' }
+  return { label: 'Public draft created', className: 'bg-purple-900 text-purple-300' }
+}
+
 // ── Subtask assignee helpers ──────────────────────────────
 function getSubtaskAssigneeIds(task) {
   if (Array.isArray(task.assignee_ids)) return task.assignee_ids.filter(Boolean)
@@ -386,26 +431,46 @@ export default function SegmentDetail() {
   const [newMilestone, setNewMilestone] = useState('')
   const [activeId, setActiveId] = useState(null)
   const [overId, setOverId]     = useState(null)
+  const [publicVideo, setPublicVideo] = useState(null)
+  const [handoffSaving, setHandoffSaving] = useState(false)
+  const [handoffMessage, setHandoffMessage] = useState('')
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }))
 
   useEffect(() => { fetchAll() }, [id])
 
+  useEffect(() => {
+    async function refreshPublicVideo() {
+      const { data } = await supabase
+        .from('videos')
+        .select('*')
+        .eq('segment_id', id)
+        .order('updated_at', { ascending: false })
+        .limit(1)
+      setPublicVideo(data?.[0] || null)
+    }
+
+    window.addEventListener('focus', refreshPublicVideo)
+    return () => window.removeEventListener('focus', refreshPublicVideo)
+  }, [id])
+
   async function fetchAll() {
     setLoading(true)
-    const [{ data: segment }, { data: subs }, { data: miles }, { data: segRoles }, { data: allMembers }] =
+    const [{ data: segment }, { data: subs }, { data: miles }, { data: segRoles }, { data: allMembers }, { data: linkedVideos }] =
       await Promise.all([
         supabase.from('segments').select('*').eq('id', id).single(),
         supabase.from('subtasks').select('*').eq('segment_id', id).order('position').order('created_at'),
         supabase.from('milestones').select('*').eq('segment_id', id).order('position').order('created_at'),
         supabase.from('segment_roles').select('*, profiles(full_name, id)').eq('segment_id', id),
         supabase.from('profiles').select('id, full_name, role'),
+        supabase.from('videos').select('*').eq('segment_id', id).order('updated_at', { ascending: false }).limit(1),
       ])
     setSeg(segment)
     setSubtasks(subs ?? [])
     setMilestones(miles ?? [])
     setRoles(segRoles ?? [])
     setMembers(allMembers ?? [])
+    setPublicVideo(linkedVideos?.[0] || null)
     setLoading(false)
   }
 
@@ -563,6 +628,92 @@ export default function SegmentDetail() {
     setRoles(r => r.filter(x => x.id !== roleId))
   }
 
+  async function sendToPublicCms() {
+    if (!isExec || !seg) return
+
+    setHandoffSaving(true)
+    setHandoffMessage('')
+
+    const credits = buildPublicCredits(roles)
+    const byline = credits.map(credit => credit.name).filter(Boolean).join(', ')
+    const segmentTitle = seg.title || 'Untitled segment'
+
+    try {
+      const { data: existingRows, error: lookupError } = await supabase
+        .from('videos')
+        .select('*')
+        .eq('segment_id', id)
+        .limit(1)
+
+      if (lookupError) throw lookupError
+
+      const existing = existingRows?.[0]
+      let result
+
+      if (existing) {
+        const isDraftLike = !existing.published && (existing.upload_status === 'planned' || existing.href === '#pending-upload' || existing.publish_status === 'draft')
+        const updatePayload = {
+          segment_id: id,
+          segment_title: segmentTitle,
+          credits,
+          byline: byline || existing.byline || '',
+        }
+
+        if (isDraftLike) {
+          updatePayload.title = segmentTitle
+          updatePayload.section = seg.section || existing.section || 'catalog'
+          updatePayload.href = existing.href || '#pending-upload'
+          updatePayload.upload_status = existing.upload_status || 'planned'
+          updatePayload.publish_status = existing.publish_status || 'draft'
+          updatePayload.published = false
+          updatePayload.placements = Array.isArray(existing.placements) ? existing.placements : []
+        }
+
+        const { data, error } = await supabase
+          .from('videos')
+          .update(updatePayload)
+          .eq('id', existing.id)
+          .select('*')
+          .single()
+
+        if (error) throw error
+        result = data
+        setHandoffMessage('Public draft updated')
+      } else {
+        const insertPayload = {
+          segment_id: id,
+          segment_title: segmentTitle,
+          title: segmentTitle,
+          section: seg.section || 'catalog',
+          href: '#pending-upload',
+          upload_status: 'planned',
+          publish_status: 'draft',
+          published: false,
+          placements: [],
+          credits,
+          byline,
+        }
+
+        const { data, error } = await supabase
+          .from('videos')
+          .insert(insertPayload)
+          .select('*')
+          .single()
+
+        if (error) throw error
+        result = data
+        setHandoffMessage('Public draft created')
+      }
+
+      setPublicVideo(result)
+    } catch (error) {
+      console.error(error)
+      setHandoffMessage(error.message || 'Could not send this segment to the Public CMS')
+    } finally {
+      setHandoffSaving(false)
+    }
+  }
+
   if (loading) return <div className="flex justify-center py-24"><Spinner size={8} /></div>
   if (!seg)    return <p className="text-gray-400">Segment not found.</p>
 
@@ -575,6 +726,9 @@ export default function SegmentDetail() {
   const activeTask       = activeId ? subtasks.find(t => t.id === activeId) : null
   const today            = new Date()
   const overdueCount     = subtasks.filter(t => t.due_date && !t.completed && isBefore(new Date(t.due_date), today) && !isToday(new Date(t.due_date))).length
+  const publicStatus     = publicVideoStatus(publicVideo)
+  const publicCmsEditUrl = publicVideo ? `${PUBLIC_CMS_VIDEO_URL}?edit=${publicVideo.id}` : PUBLIC_CMS_VIDEO_URL
+  const publicStoryUrl   = publicVideo ? `${PUBLIC_STORY_URL}/${publicVideo.id}/${slugify(publicVideo.title || seg.title)}` : ''
 
   return (
     <div>
@@ -660,6 +814,63 @@ export default function SegmentDetail() {
             <p className="text-sm text-gray-200">
               {permanentRoles.length} crew{guestRoles.length > 0 ? ` + ${guestRoles.length} guest${guestRoles.length > 1 ? 's' : ''}` : ''}
             </p>
+          </div>
+        </div>
+
+        <div className="mt-5 pt-5 border-t border-gray-800">
+          <div className="flex items-start justify-between gap-4 flex-wrap">
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Public Publishing CMS</p>
+                <span className={`badge ${publicStatus.className}`}>{publicStatus.label}</span>
+              </div>
+              <p className="text-sm text-gray-400 mt-2 max-w-2xl">
+                Send this segment when it is ready to become a public website draft. Production tasks stay here; public video URL, thumbnail, credits, placement, and SEO are finished in the Public CMS.
+              </p>
+              {publicVideo && (
+                <p className="text-xs text-gray-600 mt-2">
+                  Linked by segment ID: <span className="text-gray-400">{publicVideo.segment_id}</span>
+                </p>
+              )}
+              {handoffMessage && (
+                <p className={`text-xs mt-2 ${handoffMessage.toLowerCase().includes('could not') ? 'text-red-400' : 'text-green-400'}`}>
+                  {handoffMessage}
+                </p>
+              )}
+            </div>
+            <div className="flex items-center gap-2 flex-wrap">
+              {isExec && (
+                <button
+                  type="button"
+                  onClick={sendToPublicCms}
+                  disabled={handoffSaving}
+                  className="btn-primary flex items-center gap-1.5 text-xs px-3 py-1.5 disabled:opacity-60"
+                >
+                  {handoffSaving ? <Spinner size={3} /> : <Link2 size={13} />}
+                  {publicVideo ? 'Sync Public CMS Draft' : 'Send to Public CMS'}
+                </button>
+              )}
+              {publicVideo && (
+                <a
+                  href={publicCmsEditUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="btn-ghost flex items-center gap-1.5 text-xs px-3 py-1.5 border border-gray-700"
+                >
+                  Open in Public CMS <ExternalLink size={12} />
+                </a>
+              )}
+              {publicVideo?.published && (
+                <a
+                  href={publicStoryUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="btn-ghost flex items-center gap-1.5 text-xs px-3 py-1.5 border border-gray-700"
+                >
+                  View public story <ExternalLink size={12} />
+                </a>
+              )}
+            </div>
           </div>
         </div>
       </div>

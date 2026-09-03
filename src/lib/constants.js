@@ -27,9 +27,10 @@ export const DEPARTMENTS = {
 // Primary roles now support multiple assignees — no uniqueness enforced in UI
 export const PRIMARY_ROLES = ['Script Writer', 'Director', 'Video Editor']
 
+// Thumbnail Designer, Motion Graphics, and Audio Engineer were merged into VFX.
+// Researcher was removed. Script Editor was added.
 export const SECONDARY_ROLES = [
-  'Producer', 'Camera Operator', 'Audio Engineer', 'Motion Graphics',
-  'Thumbnail Designer', 'Social Media', 'Researcher', 'Interviewer',
+  'Producer', 'Camera Operator', 'VFX', 'Social Media', 'Script Editor', 'Interviewer',
 ]
 
 export const USER_ROLES = { MEMBER: 'member', EXEC: 'exec', ADMIN: 'admin' }

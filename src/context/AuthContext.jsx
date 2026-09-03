@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
+import { getAppUrl } from '../lib/siteUrl'
 
 const AuthContext = createContext({})
 
@@ -41,7 +42,12 @@ export function AuthProvider({ children }) {
 
   async function signUp(email, password, fullName) {
     const { data, error } = await supabase.auth.signUp({
-      email, password, options: { data: { full_name: fullName } },
+      email,
+      password,
+      options: {
+        data: { full_name: fullName },
+        emailRedirectTo: getAppUrl('/login'),
+      },
     })
     return { data, error }
   }

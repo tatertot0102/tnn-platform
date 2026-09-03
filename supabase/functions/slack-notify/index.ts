@@ -1,15 +1,29 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 const SLACK_BOT_TOKEN = Deno.env.get('SLACK_BOT_TOKEN')!
-const SITE_URL = Deno.env.get('SITE_URL') ?? ''
+const SITE_URL = (Deno.env.get('SITE_URL') ?? 'http://platform.bthstnn.org').replace(/\/$/, '')
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 
+const DEFAULT_ALLOWED_ORIGINS = [
+  'http://platform.bthstnn.org',
+  'https://tatertot0102.github.io',
+]
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': 'https://tatertot0102.github.io',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+const allowedOrigins = (Deno.env.get('ALLOWED_ORIGINS') ?? DEFAULT_ALLOWED_ORIGINS.join(','))
+  .split(',')
+  .map(origin => origin.trim().replace(/\/$/, ''))
+  .filter(Boolean)
+
+function getCorsHeaders(req: Request) {
+  const origin = req.headers.get('Origin')?.replace(/\/$/, '')
+  const allowedOrigin = origin && allowedOrigins.includes(origin) ? origin : allowedOrigins[0]
+
+  return {
+    'Access-Control-Allow-Origin': allowedOrigin,
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  }
 }
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
@@ -306,6 +320,8 @@ ${message}`,
 }
 
 Deno.serve(async (req) => {
+  const corsHeaders = getCorsHeaders(req)
+
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }

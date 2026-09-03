@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import Spinner from '../components/ui/Spinner'
+import { getAppUrl } from '../lib/siteUrl'
 
 export default function Login() {
   const { signIn, signUp } = useAuth()
@@ -46,7 +47,7 @@ export default function Login() {
     setSendingReset(true)
 
     const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
-      redirectTo: 'https://tatertot0102.github.io/tnn-platform/reset-password',
+      redirectTo: getAppUrl('/reset-password'),
     })
 
     setSendingReset(false)

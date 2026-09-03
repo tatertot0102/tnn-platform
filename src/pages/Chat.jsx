@@ -182,7 +182,7 @@ export default function Chat() {
   if (loadError) return <ErrorState message="Could not load chat." onRetry={fetchAll} />
 
   return (
-    <div className="flex h-[calc(100vh-4rem)] -m-4 md:-m-8 border-t border-gray-800">
+    <div className="fixed inset-y-0 right-0 left-0 md:left-56 flex border-t border-gray-800 bg-gray-950">
       {/* Sidebar */}
       <div className="w-64 flex-shrink-0 border-r border-gray-800 flex flex-col overflow-hidden">
         <div className="p-3 border-b border-gray-800 flex items-center justify-between">

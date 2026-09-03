@@ -50,9 +50,6 @@ export default function Sidebar() {
             <p className="text-gray-500 text-xs">Production Platform</p>
           </div>
         </div>
-        <div className="mt-3 inline-flex rounded-full border border-purple-500/30 bg-purple-500/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-purple-200">
-          Production Platform
-        </div>
       </div>
 
       <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">

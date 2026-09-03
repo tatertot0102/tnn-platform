@@ -182,8 +182,8 @@ export default function Segments() {
       ) : loadError ? (
         <ErrorState message="Could not load segments." onRetry={fetchSegments} />
       ) : (
-        <div className="card overflow-hidden">
-          <table className="w-full text-sm">
+        <div className="card overflow-x-auto">
+          <table className="w-full text-sm min-w-[720px]">
             <thead>
               <tr className="border-b border-gray-800">
                 {['Priority', 'Title', 'Status', 'Departments', 'Team', 'Due Date', ''].map((h, i) => (

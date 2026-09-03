@@ -277,7 +277,7 @@ export default function MessageComposer({
           ref={taRef}
           className="input resize-none flex-1 py-2"
           rows={2}
-          placeholder="Message... use @ to mention people, segments, deliverables, or tasks."
+          placeholder="Message... use @ to mention"
           value={text}
           onChange={handleChange}
           onKeyDown={e => {

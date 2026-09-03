@@ -90,10 +90,7 @@ export default function Dashboard() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-        <div className="inline-flex rounded-full border border-purple-500/30 bg-purple-500/10 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide text-purple-200">
-          Production Platform
-        </div>
+      <div className="flex items-center justify-end mb-4 flex-wrap gap-2">
         {isExec && (
           <button
             onClick={() => setShowReminder(true)}

@@ -7,7 +7,7 @@ import NewChannelModal from '../components/chat/NewChannelModal'
 import NewDmModal from '../components/chat/NewDmModal'
 import ManageGroupsModal from '../components/chat/ManageGroupsModal'
 import { format } from 'date-fns'
-import { Hash, Megaphone, MessageCircle, Plus, Link2, Users2, Lock, Mail } from 'lucide-react'
+import { Hash, Megaphone, MessageCircle, Plus, Link2, Users2, Lock, Mail, ArrowLeft } from 'lucide-react'
 import { splitBodyWithMentions } from '../lib/chat'
 import MentionChip from '../components/chat/MentionChip'
 import ErrorState from '../components/ui/ErrorState'
@@ -184,8 +184,8 @@ export default function Chat() {
   return (
     <div className="fixed inset-y-0 right-0 left-0 md:left-56 flex border-t border-gray-800 bg-gray-950">
       {/* Sidebar */}
-      <div className="w-64 flex-shrink-0 border-r border-gray-800 flex flex-col overflow-hidden">
-        <div className="p-3 border-b border-gray-800 flex items-center justify-between">
+      <div className={`${selectedId ? 'hidden md:flex' : 'flex'} w-full md:w-64 flex-shrink-0 border-r border-gray-800 flex-col overflow-hidden`}>
+        <div className="p-3 pl-14 md:pl-3 border-b border-gray-800 flex items-center justify-between">
           <h2 className="text-sm font-semibold text-gray-200">Chat</h2>
           <div className="flex items-center gap-1">
             {isExec && (
@@ -243,13 +243,17 @@ export default function Chat() {
       </div>
 
       {/* Thread */}
-      <div className="flex-1 flex flex-col min-w-0">
+      <div className={`${selectedId ? 'flex' : 'hidden md:flex'} flex-1 flex-col min-w-0`}>
         {!selected ? (
           <div className="flex-1 flex items-center justify-center text-gray-600 text-sm">Select a channel to get started.</div>
         ) : (
           <>
-            <div className="px-4 py-3 border-b border-gray-800 flex items-center justify-between">
-              <div className="min-w-0">
+            <div className="pl-14 md:pl-4 pr-4 py-3 border-b border-gray-800 flex items-center justify-between">
+              <div className="min-w-0 flex items-center gap-2">
+                <button onClick={() => setSelectedId(null)} className="md:hidden text-gray-500 hover:text-gray-200 flex-shrink-0">
+                  <ArrowLeft size={16} />
+                </button>
+                <div className="min-w-0">
                 <p className="text-sm font-semibold text-gray-100 flex items-center gap-1.5">
                   {selected.type === 'dm' ? <MessageCircle size={14} /> : selected.type === 'announcement' ? <Megaphone size={14} className="text-red-400" /> : <Hash size={14} />}
                   {selected.type === 'dm' ? dmLabel(selected) : selected.name}
@@ -260,6 +264,7 @@ export default function Chat() {
                   )}
                 </p>
                 <p className="text-xs text-gray-600 mt-0.5">{selectedMembers.length} member{selectedMembers.length !== 1 ? 's' : ''}</p>
+                </div>
               </div>
             </div>
 

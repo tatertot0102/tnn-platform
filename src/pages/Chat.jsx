@@ -3,11 +3,10 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import Spinner from '../components/ui/Spinner'
 import MessageComposer from '../components/chat/MessageComposer'
-import NewChannelModal from '../components/chat/NewChannelModal'
+import ChatSettingsModal from '../components/chat/ChatSettingsModal'
 import NewDmModal from '../components/chat/NewDmModal'
-import ManageGroupsModal from '../components/chat/ManageGroupsModal'
 import { format } from 'date-fns'
-import { Hash, Megaphone, MessageCircle, Plus, Link2, Users2, Lock, Mail, ArrowLeft } from 'lucide-react'
+import { Hash, Megaphone, MessageCircle, Plus, Link2, Lock, Mail, ArrowLeft, Settings } from 'lucide-react'
 import { splitBodyWithMentions } from '../lib/chat'
 import MentionChip from '../components/chat/MentionChip'
 import ErrorState from '../components/ui/ErrorState'
@@ -80,9 +79,8 @@ export default function Chat() {
   const [tasks, setTasks] = useState([])
   const [selectedId, setSelectedId] = useState(null)
   const [messages, setMessages] = useState([])
-  const [showNewChannel, setShowNewChannel] = useState(false)
+  const [showSettings, setShowSettings] = useState(false)
   const [showNewDm, setShowNewDm] = useState(false)
-  const [showGroups, setShowGroups] = useState(false)
 
   useEffect(() => { if (profile) fetchAll() }, [profile])
 
@@ -189,8 +187,8 @@ export default function Chat() {
           <h2 className="text-sm font-semibold text-gray-200">Chat</h2>
           <div className="flex items-center gap-1">
             {isExec && (
-              <button onClick={() => setShowNewChannel(true)} title="New channel" className="text-gray-500 hover:text-gray-200 p-1">
-                <Plus size={15} />
+              <button onClick={() => setShowSettings(true)} title="Chat settings" className="text-gray-500 hover:text-gray-200 p-1">
+                <Settings size={15} />
               </button>
             )}
           </div>
@@ -221,11 +219,6 @@ export default function Chat() {
                 ))}
               </div>
             ))}
-            {isExec && (
-              <button onClick={() => setShowGroups(true)} className="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs text-gray-600 hover:text-gray-300 hover:bg-gray-800 transition-colors text-left mt-1">
-                <Users2 size={12} /> Manage groups
-              </button>
-            )}
           </SidebarSection>
 
           {announcements.length > 0 && (
@@ -311,13 +304,13 @@ export default function Chat() {
         )}
       </div>
 
-      <NewChannelModal open={showNewChannel} onClose={() => setShowNewChannel(false)} members={allMembers} profile={profile}
-        onCreated={c => { fetchAll(); setSelectedId(c.id) }} />
       <NewDmModal open={showNewDm} onClose={() => setShowNewDm(false)} members={allMembers} profile={profile}
         channels={channels} channelMembers={channelMembers}
         onCreated={c => { fetchAll(); setSelectedId(c.id) }} />
-      <ManageGroupsModal open={showGroups} onClose={() => setShowGroups(false)} channels={channels} groups={groups}
-        groupMembers={groupMembers} profile={profile} onChanged={() => { fetchAll(); }} />
+      <ChatSettingsModal open={showSettings} onClose={() => setShowSettings(false)} channels={channels}
+        channelMembers={channelMembers.map(cm => ({ channel_id: cm.channel_id, user_id: cm.user_id }))}
+        groups={groups} groupMembers={groupMembers} allMembers={allMembers} profile={profile}
+        onChanged={() => { fetchAll() }} />
     </div>
   )
 }

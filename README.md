@@ -1,6 +1,11 @@
 # TNN Platform
 
-Project management platform for The News Network.
+**[platform.bthstnn.org](http://platform.bthstnn.org)**
+
+This is TNN's system for managing production workflow and team communication — segments, tasks, deliverables, and chat all live here. Every TNN member needs an account and should check the platform regularly to stay on top of what's assigned to them, what's due, and what's happening in team chat.
+
+- **Need an account?** Contact Zane.
+- **Something broken, or a question about how to use it?** Reach out to Zane, Jack, or Takuo.
 
 ---
 

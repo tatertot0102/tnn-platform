@@ -13,11 +13,17 @@ const GOOGLE_OAUTH_CLIENT_SECRET = Deno.env.get('GOOGLE_OAUTH_CLIENT_SECRET')
 const GOOGLE_OAUTH_REFRESH_TOKEN = Deno.env.get('GOOGLE_OAUTH_REFRESH_TOKEN')
 const GMAIL_SENDER = Deno.env.get('GMAIL_SENDER')
 
-export const SITE_URL = (Deno.env.get('SITE_URL') ?? 'http://platform.bthstnn.org').replace(/\/$/, '')
+// Emails always point at the custom domain over https, never at the
+// github.io host the site is built on and never at http (which redirects,
+// and some mail clients will not follow that for images).
+const CANONICAL_SITE = 'https://platform.bthstnn.org'
+const configuredSite = (Deno.env.get('SITE_URL') ?? '').trim().replace(/\/$/, '')
 
-// The site redirects http to https; some mail clients will not follow that
-// for images, so the logo is always requested over https.
-const LOGO_URL = `${SITE_URL.replace(/^http:/, 'https:')}/tnn-logo.png`
+export const SITE_URL = (!configuredSite || /github\.io/i.test(configuredSite))
+  ? CANONICAL_SITE
+  : configuredSite.replace(/^http:/, 'https:')
+
+const LOGO_URL = `${SITE_URL}/tnn-logo.png`
 
 // Brand palette, matching tailwind.config.js
 const BRAND = '#3a5fd9'
@@ -76,7 +82,8 @@ export function renderText(o: EmailOptions) {
     o.cta ? `\n${o.cta.label}: ${o.cta.url}` : '',
     '',
     '---',
-    `TNN Platform · ${SITE_URL}`,
+    'TNN Platform · platform.bthstnn.org',
+    'Contact Zane Wolf to report any issues.',
   ].filter(line => line !== undefined).join('\n')
 }
 
@@ -160,7 +167,8 @@ export function renderEmail(o: EmailOptions) {
             <td style="padding:24px 32px 26px;">
               <div style="border-top:1px solid ${LINE};padding-top:16px;font:400 12px/1.6 -apple-system,BlinkMacSystemFont,'Segoe UI',Inter,Arial,sans-serif;color:${MUTED};">
                 Sent by the TNN Platform, the home for segments, deadlines, and team chat.<br />
-                <a href="${SITE_URL}" style="color:${BRAND};text-decoration:none;">${SITE_URL.replace(/^https?:\/\//, '')}</a>
+                Contact Zane Wolf to report any issues.<br />
+                <a href="${SITE_URL}" style="color:${BRAND};text-decoration:none;">platform.bthstnn.org</a>
               </div>
             </td>
           </tr>

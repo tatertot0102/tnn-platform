@@ -8,13 +8,13 @@ import ErrorState from '../components/ui/ErrorState'
 import { useToast } from '../context/ToastContext'
 import Modal from '../components/ui/Modal'
 import { PRIORITIES, STATUSES, DEPARTMENTS, PRIMARY_ROLES, SECONDARY_ROLES } from '../lib/constants'
-import ApprovalGateCard from '../components/segments/ApprovalGateCard'
+import ApprovalGateRow from '../components/segments/ApprovalGateRow'
 import ApprovalGateModal from '../components/segments/ApprovalGateModal'
 import ApprovalFeedbackModal from '../components/segments/ApprovalFeedbackModal'
 import { format, isBefore, isToday } from 'date-fns'
 import {
   Plus, Trash2, Check, ArrowLeft, ExternalLink,
-  UserPlus, X, Flag, ChevronDown, ChevronRight, GripVertical, Link2, Pencil, ShieldCheck
+  UserPlus, X, Flag, ChevronDown, ChevronRight, GripVertical, Link2, Pencil, ShieldCheck, Lock
 } from 'lucide-react'
 import {
   DndContext, closestCenter, PointerSensor, useSensor, useSensors, DragOverlay, useDroppable
@@ -224,7 +224,7 @@ function SubmitUrlModal({ open, onClose, task, onSave }) {
 }
 
 // ── Draggable Subtask Row ─────────────────────────────────────
-function SortableSubtaskRow({ task, segmentMembers, onToggle, onDelete, onAssign, onDateChange, onRename, canEdit, profileId, isExec, onSubmitClick, highlighted }) {
+function SortableSubtaskRow({ task, segmentMembers, onToggle, onDelete, onAssign, onDateChange, onRename, canEdit, profileId, isExec, onSubmitClick, highlighted, blockedBy }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: task.id })
   const [editingTitle, setEditingTitle] = useState(false)
   const [titleVal, setTitleVal] = useState(task.title)
@@ -244,13 +244,16 @@ function SortableSubtaskRow({ task, segmentMembers, onToggle, onDelete, onAssign
 
   return (
     <div ref={setNodeRef} style={style} id={`subtask-${task.id}`}
-      className={`flex items-center gap-2 group py-1.5 border-b border-gray-800/40 last:border-0 rounded-lg transition-colors ${highlighted ? 'bg-brand-950/40 ring-1 ring-brand-500/60' : ''}`}>
+      className={`flex items-center gap-2 group py-1.5 border-b border-gray-800/40 last:border-0 rounded-lg transition-colors ${blockedBy ? 'opacity-50' : ''} ${highlighted ? 'bg-brand-950/40 ring-1 ring-brand-500/60' : ''}`}>
       <div {...attributes} {...listeners} className="cursor-grab text-gray-700 hover:text-gray-400 flex-shrink-0 touch-none">
         <GripVertical size={14} />
       </div>
-      <button onClick={() => canEdit && onToggle(task.id, task.completed)}
-        className={`w-5 h-5 rounded border flex items-center justify-center flex-shrink-0 transition-colors ${task.completed ? 'bg-green-600 border-green-600' : 'border-gray-600 hover:border-green-500'} ${!canEdit ? 'cursor-default' : ''}`}>
-        {task.completed && <Check size={11} className="text-white" />}
+      <button onClick={() => canEdit && !blockedBy && onToggle(task.id, task.completed)}
+        disabled={!!blockedBy}
+        title={blockedBy ? `Blocked until "${blockedBy.title}" is approved` : ''}
+        className={`w-5 h-5 rounded border flex items-center justify-center flex-shrink-0 transition-colors ${task.completed ? 'bg-green-600 border-green-600' : 'border-gray-600 hover:border-green-500'} ${(!canEdit || blockedBy) ? 'cursor-default hover:border-gray-600' : ''}`}>
+        {task.completed ? <Check size={11} className="text-white" />
+          : blockedBy ? <Lock size={10} className="text-gray-600" /> : null}
       </button>
       {editingTitle ? (
         <input className="input text-sm flex-1 min-w-0 py-1" value={titleVal}
@@ -364,7 +367,7 @@ function MilestoneDropZone({ id, children, isOver }) {
 }
 
 // ── Milestone Block ───────────────────────────────────────────
-function MilestoneBlock({ milestone, subtasks, gates, renderGate, segmentMembers, onToggle, onDelete, onAssign, onDateChange, onRenameSubtask, onDeleteMilestone, onRename, onAddSubtask, onAddGate, canEdit, isExec, profileId, isOver, onSubmitClick, highlightId }) {
+function MilestoneBlock({ milestone, subtasks, items, renderRow, onDeleteMilestone, onRename, onAddSubtask, onAddGate, canEdit, isExec, isOver }) {
   const [collapsed, setCollapsed] = useState(false)
   const [newTask, setNewTask] = useState('')
   const [editingTitle, setEditingTitle] = useState(false)
@@ -411,18 +414,11 @@ function MilestoneBlock({ milestone, subtasks, gates, renderGate, segmentMembers
       {!collapsed && (
         <div className="px-4 pb-3">
           <MilestoneDropZone id={`milestone-${milestone.id}`} isOver={isOver}>
-            <SortableContext items={subtasks.map(t => t.id)} strategy={verticalListSortingStrategy}>
-              {subtasks.length === 0 && <p className="text-xs text-gray-700 py-2 text-center">Drop subtasks here or add one below</p>}
-              {subtasks.map(t => (
-                <SortableSubtaskRow key={t.id} task={t} segmentMembers={segmentMembers}
-                  onToggle={onToggle} onDelete={onDelete} onAssign={onAssign} onDateChange={onDateChange}
-                  onRename={onRenameSubtask}
-                  canEdit={canEdit} profileId={profileId} isExec={isExec} onSubmitClick={onSubmitClick}
-                  highlighted={t.id === highlightId} />
-              ))}
+            <SortableContext items={items.map(i => i.id)} strategy={verticalListSortingStrategy}>
+              {items.length === 0 && <p className="text-xs text-gray-700 py-2 text-center">Drop subtasks here or add one below</p>}
+              {items.map(renderRow)}
             </SortableContext>
           </MilestoneDropZone>
-          {gates.length > 0 && <div className="mt-2 space-y-2">{gates.map(renderGate)}</div>}
           {canEdit && (
             <div className="flex gap-2 mt-2">
               <input className="input text-xs flex-1 py-1.5" placeholder={`Add task to ${milestone.title}...`}
@@ -642,7 +638,10 @@ export default function SegmentDetail() {
     }
 
     const { data, error } = await supabase.from('approval_gates')
-      .insert({ ...values, segment_id: id, created_by: profile?.id, position: gates.length })
+      .insert({
+        ...values, segment_id: id, created_by: profile?.id,
+        position: orderedItems(values.milestone_id ?? null).length,
+      })
       .select('*').single()
     if (error) { toast.error('Could not create the approval gate.'); return }
     setGates(g => [...g, data])
@@ -657,6 +656,8 @@ export default function SegmentDetail() {
     setGates(g => g.filter(x => x.id !== gateId))
     setGateFeedback(f => f.filter(x => x.gate_id !== gateId))
   }
+
+  function approveGate(gate) { return submitGateFeedback(gate, 'approved', '') }
 
   // Feedback rows are mirrored into the segment's chat channel by a database
   // trigger, so posting one here is all that's needed.
@@ -680,10 +681,25 @@ export default function SegmentDetail() {
   }
 
   // ── Drag and drop ──
-  function findContainer(taskId) {
-    const task = subtasks.find(t => t.id === taskId)
-    if (!task) return null
-    return task.milestone_id ? `milestone-${task.milestone_id}` : 'ungrouped'
+  // Subtasks and approval gates share one ordered list per milestone, so the
+  // drag handlers look items up in both tables.
+  function findItem(itemId) {
+    const task = subtasks.find(t => t.id === itemId)
+    if (task) return { kind: 'subtask', item: task }
+    const gate = gates.find(g => g.id === itemId)
+    if (gate) return { kind: 'gate', item: gate }
+    return null
+  }
+
+  function findContainer(itemId) {
+    const found = findItem(itemId)
+    if (!found) return null
+    return found.item.milestone_id ? `milestone-${found.item.milestone_id}` : 'ungrouped'
+  }
+
+  function containerMilestoneId(container) {
+    if (!container || container === 'ungrouped') return null
+    return container.startsWith('milestone-') ? container.replace('milestone-', '') : null
   }
 
   function handleDragStart({ active }) { setActiveId(active.id) }
@@ -691,40 +707,41 @@ export default function SegmentDetail() {
   function handleDragOver({ active, over }) {
     if (!over) { setOverId(null); return }
     setOverId(over.id)
+    const found = findItem(active.id)
+    if (!found) return
     const activeContainer = findContainer(active.id)
-    let overContainer = over.id
-    if (subtasks.find(t => t.id === over.id)) overContainer = findContainer(over.id)
+    const overContainer = findItem(over.id) ? findContainer(over.id) : over.id
     if (activeContainer === overContainer) return
-    const milestoneId = overContainer === 'ungrouped' ? null
-      : overContainer.startsWith('milestone-') ? overContainer.replace('milestone-', '') : null
-    setSubtasks(prev => prev.map(t => t.id === active.id ? { ...t, milestone_id: milestoneId } : t))
+    const milestoneId = containerMilestoneId(overContainer)
+    const move = list => list.map(x => x.id === active.id ? { ...x, milestone_id: milestoneId } : x)
+    if (found.kind === 'gate') setGates(move)
+    else setSubtasks(move)
   }
 
   async function handleDragEnd({ active, over }) {
     setActiveId(null); setOverId(null)
-    if (!over) return
-    const activeContainer = findContainer(active.id)
-    let overContainer = over.id
-    if (subtasks.find(t => t.id === over.id)) overContainer = findContainer(over.id)
-    const milestoneId = overContainer === 'ungrouped' ? null
-      : overContainer.startsWith('milestone-') ? overContainer.replace('milestone-', '') : null
+    if (!over || !findItem(active.id)) return
 
-    if (activeContainer === overContainer && active.id !== over.id) {
-      const containerTasks = subtasks.filter(t => milestoneId ? t.milestone_id === milestoneId : !t.milestone_id)
-      const oldIdx = containerTasks.findIndex(t => t.id === active.id)
-      const newIdx = containerTasks.findIndex(t => t.id === over.id)
-      if (oldIdx !== -1 && newIdx !== -1) {
-        const reordered = arrayMove(containerTasks, oldIdx, newIdx)
-        setSubtasks(prev => {
-          const others = prev.filter(t => milestoneId ? t.milestone_id !== milestoneId : t.milestone_id)
-          return [...others, ...reordered]
-        })
-        await Promise.all(reordered.map((t, i) => supabase.from('subtasks').update({ position: i }).eq('id', t.id)))
-        return
-      }
-    }
-    await supabase.from('subtasks').update({ milestone_id: milestoneId }).eq('id', active.id)
-    setSubtasks(s => s.map(t => t.id === active.id ? { ...t, milestone_id: milestoneId } : t))
+    const overContainer = findItem(over.id) ? findContainer(over.id) : over.id
+    const milestoneId = containerMilestoneId(overContainer)
+
+    // State already reflects any cross-list move made during dragOver.
+    let list = orderedItems(milestoneId)
+    const oldIdx = list.findIndex(i => i.id === active.id)
+    const newIdx = list.findIndex(i => i.id === over.id)
+    if (oldIdx !== -1 && newIdx !== -1 && oldIdx !== newIdx) list = arrayMove(list, oldIdx, newIdx)
+
+    const positions = new Map(list.map((i, idx) => [i.id, idx]))
+    const applyPosition = x => positions.has(x.id)
+      ? { ...x, position: positions.get(x.id), milestone_id: milestoneId }
+      : x
+    setSubtasks(s => s.map(applyPosition))
+    setGates(g => g.map(applyPosition))
+
+    await Promise.all(list.map((i, idx) =>
+      supabase.from(i.kind === 'gate' ? 'approval_gates' : 'subtasks')
+        .update({ position: idx, milestone_id: milestoneId }).eq('id', i.id)
+    ))
   }
 
   // ── Milestones ──
@@ -859,26 +876,55 @@ export default function SegmentDetail() {
   const guestRoles       = roles.filter(r => r.is_guest)
   const segmentMemberIds = [...new Set(roles.map(r => r.user_id))]
   const segmentMembers   = members.filter(m => segmentMemberIds.includes(m.id))
-  const ungrouped        = subtasks.filter(t => !t.milestone_id)
-  const ungroupedGates   = gates.filter(g => !g.milestone_id)
+
+  // Subtasks and gates interleave in one ordered list per milestone. A gate
+  // that is not yet approved blocks every subtask below it in that list.
+  function orderedItems(milestoneId) {
+    const rows = [
+      ...subtasks.filter(t => (t.milestone_id ?? null) === (milestoneId ?? null)).map(t => ({ ...t, kind: 'subtask' })),
+      ...gates.filter(g => (g.milestone_id ?? null) === (milestoneId ?? null)).map(g => ({ ...g, kind: 'gate' })),
+    ].sort((a, b) =>
+      (a.position ?? 0) - (b.position ?? 0) ||
+      new Date(a.created_at) - new Date(b.created_at)
+    )
+
+    let blocker = null
+    return rows.map(row => {
+      if (row.kind === 'gate') {
+        const next = { ...row, blockedBy: blocker }
+        if (row.status !== 'approved') blocker = blocker ?? row
+        return next
+      }
+      return { ...row, blockedBy: blocker }
+    })
+  }
+
+  const ungroupedItems   = orderedItems(null)
   const completedCount   = subtasks.filter(t => t.completed).length
   const activeTask       = activeId ? subtasks.find(t => t.id === activeId) : null
+  const activeGate       = activeId ? gates.find(g => g.id === activeId) : null
   const today            = new Date()
   const overdueCount     = subtasks.filter(t => t.due_date && !t.completed && isBefore(new Date(t.due_date), today) && !isToday(new Date(t.due_date))).length
   const publicStatus     = publicVideoStatus(publicVideo)
   const publicCmsEditUrl = publicVideo ? `${PUBLIC_CMS_VIDEO_URL}?edit=${publicVideo.id}` : PUBLIC_CMS_VIDEO_URL
   const publicStoryUrl   = publicVideo ? `${PUBLIC_STORY_URL}/${publicVideo.id}/${slugify(publicVideo.title || seg.title)}` : ''
 
-  const renderGate = g => (
-    <ApprovalGateCard key={g.id} gate={g}
-      feedback={gateFeedback.filter(f => f.gate_id === g.id)}
-      members={members} profileId={profile?.id} isExec={isExec}
-      segmentTitle={seg.title}
-      highlighted={g.id === highlightGateId}
+  const renderRow = row => row.kind === 'gate' ? (
+    <ApprovalGateRow key={row.id} gate={row}
+      feedbackCount={gateFeedback.filter(f => f.gate_id === row.id).length}
+      members={members} profileId={profile?.id} isExec={isExec} canEdit={canEdit}
+      highlighted={row.id === highlightGateId}
+      onApprove={approveGate}
+      onRequestChanges={gate => setFeedbackModal({ gate, kind: 'changes_requested' })}
+      onComments={gate => setFeedbackModal({ gate, kind: 'comment' })}
       onEdit={gate => setGateModal({ gate })}
-      onDelete={deleteGate}
-      onFeedback={(gate, kind) => setFeedbackModal({ gate, kind })}
-      onDecide={(gate, kind) => setFeedbackModal({ gate, kind })} />
+      onDelete={deleteGate} />
+  ) : (
+    <SortableSubtaskRow key={row.id} task={row} segmentMembers={segmentMembers}
+      onToggle={toggleSubtask} onDelete={deleteSubtask} onAssign={assignSubtask}
+      onDateChange={updateSubtaskDate} onRename={renameSubtask}
+      canEdit={canEdit} profileId={profile?.id} isExec={isExec} onSubmitClick={setSubmitTask}
+      highlighted={row.id === highlightId} blockedBy={row.blockedBy} />
   )
 
   return (
@@ -1157,31 +1203,21 @@ export default function SegmentDetail() {
             {milestones.map(m => (
               <MilestoneBlock key={m.id} milestone={m}
                 subtasks={subtasks.filter(t => t.milestone_id === m.id)}
-                gates={gates.filter(g => g.milestone_id === m.id)} renderGate={renderGate}
-                segmentMembers={segmentMembers}
-                onToggle={toggleSubtask} onDelete={deleteSubtask} onAssign={assignSubtask} onDateChange={updateSubtaskDate}
-                onRenameSubtask={renameSubtask}
+                items={orderedItems(m.id)} renderRow={renderRow}
                 onDeleteMilestone={deleteMilestone} onRename={renameMilestone} onAddSubtask={addSubtask}
                 onAddGate={milestoneId => setGateModal({ gate: null, milestoneId })}
-                canEdit={canEdit} isExec={isExec} profileId={profile?.id}
-                isOver={overId === `milestone-${m.id}`} onSubmitClick={setSubmitTask} highlightId={highlightId} />
+                canEdit={canEdit} isExec={isExec}
+                isOver={overId === `milestone-${m.id}`} />
             ))}
             <div className={`card p-5 mb-4 transition-colors ${overId === 'ungrouped' ? 'border-brand-500/50 bg-brand-950/10' : ''}`}>
               {milestones.length > 0 && <p className="text-xs text-gray-600 font-medium mb-3 uppercase tracking-wider">Ungrouped</p>}
               <MilestoneDropZone id="ungrouped" isOver={overId === 'ungrouped'}>
-                <SortableContext items={ungrouped.map(t => t.id)} strategy={verticalListSortingStrategy}>
-                  {ungrouped.length === 0 && milestones.length > 0 && <p className="text-xs text-gray-700 py-2 text-center">Drop subtasks here to ungroup them</p>}
-                  {ungrouped.length === 0 && milestones.length === 0 && <p className="text-gray-500 text-sm mb-3">No subtasks yet.</p>}
-                  {ungrouped.map(t => (
-                    <SortableSubtaskRow key={t.id} task={t} segmentMembers={segmentMembers}
-                      onToggle={toggleSubtask} onDelete={deleteSubtask} onAssign={assignSubtask} onDateChange={updateSubtaskDate}
-                      onRename={renameSubtask}
-                      canEdit={canEdit} profileId={profile?.id} isExec={isExec} onSubmitClick={setSubmitTask}
-                      highlighted={t.id === highlightId} />
-                  ))}
+                <SortableContext items={ungroupedItems.map(i => i.id)} strategy={verticalListSortingStrategy}>
+                  {ungroupedItems.length === 0 && milestones.length > 0 && <p className="text-xs text-gray-700 py-2 text-center">Drop subtasks here to ungroup them</p>}
+                  {ungroupedItems.length === 0 && milestones.length === 0 && <p className="text-gray-500 text-sm mb-3">No subtasks yet.</p>}
+                  {ungroupedItems.map(renderRow)}
                 </SortableContext>
               </MilestoneDropZone>
-              {ungroupedGates.length > 0 && <div className="mt-3 space-y-2">{ungroupedGates.map(renderGate)}</div>}
               {canEdit && (
                 <div className="flex gap-2 mt-3">
                   <input className="input flex-1" placeholder="Add a subtask..." value={newSubtask}
@@ -1209,7 +1245,16 @@ export default function SegmentDetail() {
               </div>
             )}
           </div>
-          <DragOverlay>{activeTask && <StaticSubtaskRow task={activeTask} />}</DragOverlay>
+          <DragOverlay>
+            {activeTask && <StaticSubtaskRow task={activeTask} />}
+            {activeGate && (
+              <div className="flex items-center gap-2 py-1.5 bg-gray-800 border border-gray-700 rounded-lg px-3 shadow-xl">
+                <GripVertical size={14} className="text-gray-500" />
+                <ShieldCheck size={14} className="text-brand-400" />
+                <span className="text-sm text-gray-100 font-medium">{activeGate.title}</span>
+              </div>
+            )}
+          </DragOverlay>
         </DndContext>
       )}
 
@@ -1343,6 +1388,8 @@ export default function SegmentDetail() {
       {feedbackModal && (
         <ApprovalFeedbackModal open onClose={() => setFeedbackModal(null)}
           gate={feedbackModal.gate} kind={feedbackModal.kind}
+          feedback={gateFeedback.filter(f => f.gate_id === feedbackModal.gate.id)}
+          members={members} segmentTitle={seg.title}
           onSubmit={body => submitGateFeedback(feedbackModal.gate, feedbackModal.kind, body)} />
       )}
     </div>

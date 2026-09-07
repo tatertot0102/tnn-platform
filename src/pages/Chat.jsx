@@ -10,6 +10,7 @@ import { Hash, Megaphone, MessageCircle, Plus, Link2, Lock, Mail, ArrowLeft, Set
 import { splitBodyWithMentions } from '../lib/chat'
 import MentionChip from '../components/chat/MentionChip'
 import ErrorState from '../components/ui/ErrorState'
+import ApprovalFeedbackCard from '../components/segments/ApprovalFeedbackCard'
 import { useToast } from '../context/ToastContext'
 
 function MessageBody({ body, mentions }) {
@@ -275,7 +276,17 @@ export default function Chat() {
                         <span className="text-sm font-medium text-gray-200">{sender?.full_name ?? 'Unknown'}</span>
                         <span className="text-[11px] text-gray-600">{format(new Date(msg.created_at), 'MMM d, h:mm a')}</span>
                       </div>
-                      {msg.email_subject ? (
+                      {msg.approval_gate_id && msg.approval_meta ? (
+                        <div className="mt-1">
+                          <ApprovalFeedbackCard
+                            kind={msg.approval_meta.kind}
+                            gateTitle={msg.approval_meta.gate_title}
+                            segmentTitle={msg.approval_meta.segment_title}
+                            body={msg.body}
+                            href={`/segments/${msg.approval_meta.segment_id}?tab=subtasks&gate=${msg.approval_gate_id}`}
+                          />
+                        </div>
+                      ) : msg.email_subject ? (
                         <div className="mt-1"><EmailCard msg={msg} /></div>
                       ) : (
                         <p className="text-sm text-gray-300 whitespace-pre-wrap break-words">

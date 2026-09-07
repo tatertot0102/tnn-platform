@@ -8,10 +8,13 @@ import ErrorState from '../components/ui/ErrorState'
 import { useToast } from '../context/ToastContext'
 import Modal from '../components/ui/Modal'
 import { PRIORITIES, STATUSES, DEPARTMENTS, PRIMARY_ROLES, SECONDARY_ROLES } from '../lib/constants'
+import ApprovalGateCard from '../components/segments/ApprovalGateCard'
+import ApprovalGateModal from '../components/segments/ApprovalGateModal'
+import ApprovalFeedbackModal from '../components/segments/ApprovalFeedbackModal'
 import { format, isBefore, isToday } from 'date-fns'
 import {
   Plus, Trash2, Check, ArrowLeft, ExternalLink,
-  UserPlus, X, Flag, ChevronDown, ChevronRight, GripVertical, Link2, Pencil
+  UserPlus, X, Flag, ChevronDown, ChevronRight, GripVertical, Link2, Pencil, ShieldCheck
 } from 'lucide-react'
 import {
   DndContext, closestCenter, PointerSensor, useSensor, useSensors, DragOverlay, useDroppable
@@ -221,8 +224,17 @@ function SubmitUrlModal({ open, onClose, task, onSave }) {
 }
 
 // ── Draggable Subtask Row ─────────────────────────────────────
-function SortableSubtaskRow({ task, segmentMembers, onToggle, onDelete, onAssign, onDateChange, canEdit, profileId, isExec, onSubmitClick, highlighted }) {
+function SortableSubtaskRow({ task, segmentMembers, onToggle, onDelete, onAssign, onDateChange, onRename, canEdit, profileId, isExec, onSubmitClick, highlighted }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: task.id })
+  const [editingTitle, setEditingTitle] = useState(false)
+  const [titleVal, setTitleVal] = useState(task.title)
+
+  function saveTitle() {
+    const next = titleVal.trim()
+    setEditingTitle(false)
+    if (next && next !== task.title) onRename(task.id, next)
+    else setTitleVal(task.title)
+  }
   const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.3 : 1 }
   const isOverdue = task.due_date && !task.completed && isBefore(new Date(task.due_date), new Date()) && !isToday(new Date(task.due_date))
   const assigneeIds = getSubtaskAssigneeIds(task)
@@ -240,9 +252,21 @@ function SortableSubtaskRow({ task, segmentMembers, onToggle, onDelete, onAssign
         className={`w-5 h-5 rounded border flex items-center justify-center flex-shrink-0 transition-colors ${task.completed ? 'bg-green-600 border-green-600' : 'border-gray-600 hover:border-green-500'} ${!canEdit ? 'cursor-default' : ''}`}>
         {task.completed && <Check size={11} className="text-white" />}
       </button>
-      <span className={`flex-1 text-sm min-w-0 truncate ${task.completed ? 'text-gray-600 line-through' : 'text-gray-200'}`}>
-        {task.title}
-      </span>
+      {editingTitle ? (
+        <input className="input text-sm flex-1 min-w-0 py-1" value={titleVal}
+          onChange={e => setTitleVal(e.target.value)} onBlur={saveTitle}
+          onKeyDown={e => {
+            if (e.key === 'Enter') saveTitle()
+            if (e.key === 'Escape') { setTitleVal(task.title); setEditingTitle(false) }
+          }} autoFocus />
+      ) : (
+        <span
+          onClick={() => canEdit && (setTitleVal(task.title), setEditingTitle(true))}
+          title={canEdit ? 'Click to rename' : task.title}
+          className={`flex-1 text-sm min-w-0 truncate ${canEdit ? 'cursor-text hover:text-brand-300' : ''} ${task.completed ? 'text-gray-600 line-through' : 'text-gray-200'}`}>
+          {task.title}
+        </span>
+      )}
       {/* Submit link */}
       {canSubmit && (
         task.submit_url ? (
@@ -340,7 +364,7 @@ function MilestoneDropZone({ id, children, isOver }) {
 }
 
 // ── Milestone Block ───────────────────────────────────────────
-function MilestoneBlock({ milestone, subtasks, segmentMembers, onToggle, onDelete, onAssign, onDateChange, onDeleteMilestone, onRename, onAddSubtask, canEdit, isExec, profileId, isOver, onSubmitClick, highlightId }) {
+function MilestoneBlock({ milestone, subtasks, gates, renderGate, segmentMembers, onToggle, onDelete, onAssign, onDateChange, onRenameSubtask, onDeleteMilestone, onRename, onAddSubtask, onAddGate, canEdit, isExec, profileId, isOver, onSubmitClick, highlightId }) {
   const [collapsed, setCollapsed] = useState(false)
   const [newTask, setNewTask] = useState('')
   const [editingTitle, setEditingTitle] = useState(false)
@@ -392,11 +416,13 @@ function MilestoneBlock({ milestone, subtasks, segmentMembers, onToggle, onDelet
               {subtasks.map(t => (
                 <SortableSubtaskRow key={t.id} task={t} segmentMembers={segmentMembers}
                   onToggle={onToggle} onDelete={onDelete} onAssign={onAssign} onDateChange={onDateChange}
+                  onRename={onRenameSubtask}
                   canEdit={canEdit} profileId={profileId} isExec={isExec} onSubmitClick={onSubmitClick}
                   highlighted={t.id === highlightId} />
               ))}
             </SortableContext>
           </MilestoneDropZone>
+          {gates.length > 0 && <div className="mt-2 space-y-2">{gates.map(renderGate)}</div>}
           {canEdit && (
             <div className="flex gap-2 mt-2">
               <input className="input text-xs flex-1 py-1.5" placeholder={`Add task to ${milestone.title}...`}
@@ -405,6 +431,10 @@ function MilestoneBlock({ milestone, subtasks, segmentMembers, onToggle, onDelet
               <button className="btn-ghost text-xs px-2"
                 onClick={() => { if (newTask.trim()) { onAddSubtask(newTask.trim(), milestone.id); setNewTask('') } }}>
                 <Plus size={14} />
+              </button>
+              <button className="btn-ghost text-xs px-2" title="Add approval gate"
+                onClick={() => onAddGate(milestone.id)}>
+                <ShieldCheck size={14} className="text-brand-400" />
               </button>
             </div>
           )}
@@ -421,9 +451,12 @@ export default function SegmentDetail() {
   const navigate            = useNavigate()
   const [searchParams]      = useSearchParams()
   const highlightId         = searchParams.get('highlight')
+  const highlightGateId     = searchParams.get('gate')
 
   const [seg, setSeg]               = useState(null)
   const [subtasks, setSubtasks]     = useState([])
+  const [gates, setGates]           = useState([])
+  const [gateFeedback, setGateFeedback] = useState([])
   const [milestones, setMilestones] = useState([])
   const [roles, setRoles]           = useState([])
   const [members, setMembers]       = useState([])
@@ -431,10 +464,12 @@ export default function SegmentDetail() {
   const [loadError, setLoadError]   = useState(false)
   const toast = useToast()
   const [saving, setSaving]         = useState(false)
-  const [activeTab, setActiveTab]   = useState(searchParams.get('tab') === 'subtasks' ? 'subtasks' : 'overview')
+  const [activeTab, setActiveTab]   = useState(searchParams.get('tab') === 'subtasks' || searchParams.get('gate') ? 'subtasks' : 'overview')
   const [showGuestModal, setShowGuestModal]   = useState(false)
   const [submitTask, setSubmitTask]           = useState(null)
   const [newSubtask, setNewSubtask]     = useState('')
+  const [gateModal, setGateModal]       = useState(null)   // { gate } — gate null means "new"
+  const [feedbackModal, setFeedbackModal] = useState(null) // { gate, kind }
   const [newMilestone, setNewMilestone] = useState('')
   const [activeId, setActiveId] = useState(null)
   const [overId, setOverId]     = useState(null)
@@ -451,6 +486,12 @@ export default function SegmentDetail() {
     const el = document.getElementById(`subtask-${highlightId}`)
     el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
   }, [highlightId, loading, subtasks])
+
+  useEffect(() => {
+    if (!highlightGateId || loading) return
+    const el = document.getElementById(`gate-${highlightGateId}`)
+    el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  }, [highlightGateId, loading, gates])
 
   useEffect(() => {
     async function refreshPublicVideo() {
@@ -473,6 +514,7 @@ export default function SegmentDetail() {
     const [
       { data: segment, error: segError }, { data: subs, error: subError }, { data: miles, error: mileError },
       { data: segRoles, error: roleError }, { data: allMembers, error: memberError }, { data: linkedVideos },
+      { data: segGates },
     ] = await Promise.all([
       supabase.from('segments').select('*').eq('id', id).single(),
       supabase.from('subtasks').select('*').eq('segment_id', id).order('position').order('created_at'),
@@ -480,6 +522,7 @@ export default function SegmentDetail() {
       supabase.from('segment_roles').select('*, profiles(full_name, id)').eq('segment_id', id),
       supabase.from('profiles').select('id, full_name, role'),
       supabase.from('videos').select('*').eq('segment_id', id).order('updated_at', { ascending: false }).limit(1),
+      supabase.from('approval_gates').select('*').eq('segment_id', id).order('position').order('created_at'),
     ])
 
     // segError covers "not found" too (.single() with no row) — handled below via !seg, not as a hard error.
@@ -491,6 +534,8 @@ export default function SegmentDetail() {
 
     setSeg(segment)
     setSubtasks(subs ?? [])
+    setGates(segGates ?? [])
+    setGateFeedback(await fetchGateFeedback(segGates ?? []))
     setMilestones(miles ?? [])
     setRoles(segRoles ?? [])
     setMembers(allMembers ?? [])
@@ -563,9 +608,75 @@ export default function SegmentDetail() {
     setSubtasks(s => s.map(t => t.id === subtaskId ? { ...t, due_date: date } : t))
   }
 
+  async function renameSubtask(subtaskId, title) {
+    if (!canEdit) return
+    const { error } = await supabase.from('subtasks').update({ title }).eq('id', subtaskId)
+    if (error) { toast.error('Could not rename the subtask.'); return }
+    setSubtasks(s => s.map(t => t.id === subtaskId ? { ...t, title } : t))
+  }
+
   async function saveSubmitUrl(subtaskId, url) {
     await supabase.from('subtasks').update({ submit_url: url }).eq('id', subtaskId)
     setSubtasks(s => s.map(t => t.id === subtaskId ? { ...t, submit_url: url } : t))
+  }
+
+  // ── Approval gates ──
+  async function fetchGateFeedback(gateList) {
+    const gateIds = gateList.map(g => g.id)
+    if (gateIds.length === 0) return []
+    const { data } = await supabase.from('approval_feedback')
+      .select('*').in('gate_id', gateIds).order('created_at')
+    return data ?? []
+  }
+
+  async function saveGate(values) {
+    if (!canEdit) return
+    const editing = gateModal?.gate
+
+    if (editing) {
+      const { data, error } = await supabase.from('approval_gates')
+        .update(values).eq('id', editing.id).select('*').single()
+      if (error) { toast.error('Could not save the approval gate.'); return }
+      setGates(g => g.map(x => x.id === data.id ? data : x))
+      return
+    }
+
+    const { data, error } = await supabase.from('approval_gates')
+      .insert({ ...values, segment_id: id, created_by: profile?.id, position: gates.length })
+      .select('*').single()
+    if (error) { toast.error('Could not create the approval gate.'); return }
+    setGates(g => [...g, data])
+    toast.success('Approval gate created. The approver has been notified.')
+  }
+
+  async function deleteGate(gateId) {
+    if (!isExec) return
+    if (!confirm('Delete this approval gate and its feedback?')) return
+    const { error } = await supabase.from('approval_gates').delete().eq('id', gateId)
+    if (error) { toast.error('Could not delete the approval gate.'); return }
+    setGates(g => g.filter(x => x.id !== gateId))
+    setGateFeedback(f => f.filter(x => x.gate_id !== gateId))
+  }
+
+  // Feedback rows are mirrored into the segment's chat channel by a database
+  // trigger, so posting one here is all that's needed.
+  async function submitGateFeedback(gate, kind, body) {
+    const text = body || (kind === 'approved' ? 'Approved.' : 'Changes requested.')
+
+    if (kind !== 'comment') {
+      const { data, error } = await supabase.from('approval_gates')
+        .update({ status: kind, decided_at: new Date().toISOString(), decided_by: profile?.id })
+        .eq('id', gate.id).select('*').single()
+      if (error) { toast.error('Could not update the approval gate.'); return }
+      setGates(g => g.map(x => x.id === data.id ? data : x))
+    }
+
+    const { data: fb, error: fbError } = await supabase.from('approval_feedback')
+      .insert({ gate_id: gate.id, author_id: profile?.id, body: text, kind })
+      .select('*').single()
+    if (fbError) { toast.error('Could not post your feedback.'); return }
+    setGateFeedback(f => [...f, fb])
+    toast.success('Posted to the segment channel.')
   }
 
   // ── Drag and drop ──
@@ -749,6 +860,7 @@ export default function SegmentDetail() {
   const segmentMemberIds = [...new Set(roles.map(r => r.user_id))]
   const segmentMembers   = members.filter(m => segmentMemberIds.includes(m.id))
   const ungrouped        = subtasks.filter(t => !t.milestone_id)
+  const ungroupedGates   = gates.filter(g => !g.milestone_id)
   const completedCount   = subtasks.filter(t => t.completed).length
   const activeTask       = activeId ? subtasks.find(t => t.id === activeId) : null
   const today            = new Date()
@@ -756,6 +868,18 @@ export default function SegmentDetail() {
   const publicStatus     = publicVideoStatus(publicVideo)
   const publicCmsEditUrl = publicVideo ? `${PUBLIC_CMS_VIDEO_URL}?edit=${publicVideo.id}` : PUBLIC_CMS_VIDEO_URL
   const publicStoryUrl   = publicVideo ? `${PUBLIC_STORY_URL}/${publicVideo.id}/${slugify(publicVideo.title || seg.title)}` : ''
+
+  const renderGate = g => (
+    <ApprovalGateCard key={g.id} gate={g}
+      feedback={gateFeedback.filter(f => f.gate_id === g.id)}
+      members={members} profileId={profile?.id} isExec={isExec}
+      segmentTitle={seg.title}
+      highlighted={g.id === highlightGateId}
+      onEdit={gate => setGateModal({ gate })}
+      onDelete={deleteGate}
+      onFeedback={(gate, kind) => setFeedbackModal({ gate, kind })}
+      onDecide={(gate, kind) => setFeedbackModal({ gate, kind })} />
+  )
 
   return (
     <div>
@@ -1029,12 +1153,16 @@ export default function SegmentDetail() {
             {segmentMembers.length === 0 && isExec && (
               <p className="text-xs text-yellow-600 mb-4 px-1">⚠ Assign people to roles first to enable subtask assignment.</p>
             )}
+
             {milestones.map(m => (
               <MilestoneBlock key={m.id} milestone={m}
                 subtasks={subtasks.filter(t => t.milestone_id === m.id)}
+                gates={gates.filter(g => g.milestone_id === m.id)} renderGate={renderGate}
                 segmentMembers={segmentMembers}
                 onToggle={toggleSubtask} onDelete={deleteSubtask} onAssign={assignSubtask} onDateChange={updateSubtaskDate}
+                onRenameSubtask={renameSubtask}
                 onDeleteMilestone={deleteMilestone} onRename={renameMilestone} onAddSubtask={addSubtask}
+                onAddGate={milestoneId => setGateModal({ gate: null, milestoneId })}
                 canEdit={canEdit} isExec={isExec} profileId={profile?.id}
                 isOver={overId === `milestone-${m.id}`} onSubmitClick={setSubmitTask} highlightId={highlightId} />
             ))}
@@ -1047,11 +1175,13 @@ export default function SegmentDetail() {
                   {ungrouped.map(t => (
                     <SortableSubtaskRow key={t.id} task={t} segmentMembers={segmentMembers}
                       onToggle={toggleSubtask} onDelete={deleteSubtask} onAssign={assignSubtask} onDateChange={updateSubtaskDate}
+                      onRename={renameSubtask}
                       canEdit={canEdit} profileId={profile?.id} isExec={isExec} onSubmitClick={setSubmitTask}
                       highlighted={t.id === highlightId} />
                   ))}
                 </SortableContext>
               </MilestoneDropZone>
+              {ungroupedGates.length > 0 && <div className="mt-3 space-y-2">{ungroupedGates.map(renderGate)}</div>}
               {canEdit && (
                 <div className="flex gap-2 mt-3">
                   <input className="input flex-1" placeholder="Add a subtask..." value={newSubtask}
@@ -1060,6 +1190,10 @@ export default function SegmentDetail() {
                   <button className="btn-primary flex items-center gap-2"
                     onClick={() => { if (newSubtask.trim()) { addSubtask(newSubtask.trim(), null); setNewSubtask('') } }}>
                     <Plus size={15} /> Add
+                  </button>
+                  <button className="btn-ghost px-3 border border-gray-700" title="Add approval gate"
+                    onClick={() => setGateModal({ gate: null, milestoneId: null })}>
+                    <ShieldCheck size={15} className="text-brand-400" />
                   </button>
                 </div>
               )}
@@ -1198,6 +1332,19 @@ export default function SegmentDetail() {
 
       <SubmitUrlModal open={!!submitTask} onClose={() => setSubmitTask(null)}
         task={submitTask} onSave={saveSubmitUrl} />
+
+      {gateModal && (
+        <ApprovalGateModal open onClose={() => setGateModal(null)}
+          gate={gateModal.gate} members={segmentMembers.length ? segmentMembers : members}
+          milestones={milestones} defaultMilestoneId={gateModal.milestoneId ?? null}
+          onSave={saveGate} />
+      )}
+
+      {feedbackModal && (
+        <ApprovalFeedbackModal open onClose={() => setFeedbackModal(null)}
+          gate={feedbackModal.gate} kind={feedbackModal.kind}
+          onSubmit={body => submitGateFeedback(feedbackModal.gate, feedbackModal.kind, body)} />
+      )}
     </div>
   )
 }

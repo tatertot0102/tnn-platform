@@ -26,17 +26,23 @@ function MessageBody({ body, mentions }) {
 }
 
 function EmailCard({ msg }) {
+  const to = msg.email_to ?? []
+  const shown = to.slice(0, 4)
+  const rest = to.length - shown.length
+
   return (
-    <div className="border border-brand-800/50 bg-brand-950/20 rounded-xl p-3 max-w-lg">
-      <p className="flex items-center gap-1.5 text-xs font-semibold text-brand-300 uppercase tracking-wider mb-2">
-        <Mail size={12} /> Email · {msg.email_subject}
-      </p>
-      <div className="flex flex-wrap gap-1 mb-2">
-        {(msg.email_to ?? []).map(r => (
-          <span key={r.id} className="badge bg-gray-800 text-gray-300 text-[10px]">{r.label}</span>
-        ))}
+    <div className="border border-brand-800/60 bg-brand-950/25 rounded-xl overflow-hidden max-w-lg">
+      <div className="flex items-center gap-1.5 px-3 py-1.5 bg-brand-950/40 border-b border-brand-900/50">
+        <Mail size={11} className="text-brand-400 flex-shrink-0" />
+        <span className="text-[10px] font-semibold text-brand-300 uppercase tracking-wider">Email</span>
+        <span className="text-[11px] text-gray-500 truncate ml-1" title={to.map(r => r.label).join(', ')}>
+          to {shown.map(r => r.label).join(', ')}{rest > 0 ? ` +${rest} more` : ''}
+        </span>
       </div>
-      <p className="text-sm text-gray-300 whitespace-pre-wrap break-words">{msg.body}</p>
+      <div className="p-3">
+        <p className="text-sm font-semibold text-gray-100 mb-1.5">{msg.email_subject}</p>
+        <p className="text-sm text-gray-300 whitespace-pre-wrap break-words">{msg.body}</p>
+      </div>
     </div>
   )
 }

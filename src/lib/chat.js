@@ -25,14 +25,16 @@ export function splitBodyWithMentions(body, mentions = []) {
   return parts
 }
 
-// Fire-and-forget email via the send-email edge function (Gmail API).
-// Failures are logged but never block the chat flow — email is a
-// notification side-effect, not the source of truth (the message is).
+// Sends a branded email through the send-email edge function (Gmail API).
+// Returns { ok, error } instead of throwing: callers post the message first
+// (the message is the source of truth) and surface a delivery failure
+// separately, so a broken mailbox never looks like a successful send.
 export async function sendEmail({ to, subject, text, senderName, segmentTitle, url }) {
   const recipients = [...new Set((to ?? []).filter(Boolean))]
-  if (recipients.length === 0) return
+  if (recipients.length === 0) return { ok: false, error: 'No recipients have an email address.' }
+
   try {
-    const { error } = await supabase.functions.invoke('send-email', {
+    const { data, error } = await supabase.functions.invoke('send-email', {
       body: {
         to: recipients, subject, text,
         sender_name: senderName ?? null,
@@ -40,8 +42,16 @@ export async function sendEmail({ to, subject, text, senderName, segmentTitle, u
         url: url ?? null,
       },
     })
-    if (error) console.error('send-email failed:', error)
+    if (error) {
+      // FunctionsHttpError keeps the real reason in the response body.
+      const detail = await error.context?.json?.().then(b => b?.error).catch(() => null)
+      console.error('send-email failed:', detail ?? error)
+      return { ok: false, error: detail ?? error.message ?? 'Email service error.' }
+    }
+    if (data?.error) return { ok: false, error: data.error }
+    return { ok: true }
   } catch (err) {
     console.error('send-email failed:', err)
+    return { ok: false, error: err?.message ?? 'Could not reach the email service.' }
   }
 }

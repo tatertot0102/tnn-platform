@@ -3,7 +3,7 @@ import { supabase } from '../../lib/supabase'
 import { sendEmail } from '../../lib/chat'
 import { useToast } from '../../context/ToastContext'
 import EmailComposerPanel from './EmailComposerPanel'
-import { Send, AtSign, Plus, Check, ListChecks } from 'lucide-react'
+import { Send, AtSign, Mail, MessageSquare, Check, ListChecks } from 'lucide-react'
 
 function buildResults({ query, allMembers, channelMemberIds, segments, subtasks, tasks, profileId }) {
   const q = query.toLowerCase()
@@ -40,6 +40,11 @@ function buildResults({ query, allMembers, channelMemberIds, segments, subtasks,
     .forEach(t => results.push({ type: 'task', id: t.id, label: t.title, sub: 'Task' }))
 
   return results.slice(0, 16)
+}
+
+// Deep link back into chat for the email CTA.
+function chatUrl() {
+  return `${window.location.origin}/chat`
 }
 
 const TYPE_TAG = {
@@ -161,53 +166,75 @@ export default function MessageComposer({
 
       if (error) throw error
 
-      if (channel.type === 'announcement') {
-        await sendEmail({
-          to: channelMembers.map(m => m.email),
-          subject: channel.name || 'Announcement',
-          text: trimmed,
-          senderName: profile.full_name,
-          url: `${window.location.origin}/chat`,
-        })
-      }
-
       setText('')
       setMentions([])
       onSent?.(msg)
+
+      // The message is already saved; a failed email must not look like a
+      // failed post, but it must not pass silently either.
+      if (channel.type === 'announcement') {
+        const { ok, error: mailError } = await sendEmail({
+          to: channelMembers.filter(m => m.id !== profile.id).map(m => m.email),
+          subject: channel.name || 'Announcement',
+          text: trimmed,
+          senderName: profile.full_name,
+          url: chatUrl(),
+        })
+        if (!ok) toast.error(`Posted, but the announcement email failed: ${mailError}`)
+      }
     } catch {
-      toast.error('Could not send message.')
+      toast.error('Could not send message. You may not have permission to post here.')
     } finally {
       setSending(false)
     }
   }
 
   async function handleSendEmail({ subject, body, recipients }) {
-    const { data: msg, error } = await supabase
-      .from('messages')
-      .insert({
-        channel_id: channel.id,
-        sender_id: profile.id,
-        body,
-        mentions: recipients.map(r => ({ type: 'user', id: r.id, label: r.full_name })),
-        mentioned_user_ids: recipients.map(r => r.id),
-        email_subject: subject,
-        email_to: recipients.map(r => ({ id: r.id, label: r.full_name, email: r.email })),
-      })
-      .select('*')
-      .single()
+    try {
+      // Recipients outside the channel are added first, so the message they
+      // are emailed about is actually visible to them in the thread.
+      const toAdd = recipients.map(r => r.id).filter(id => !channelMemberIds.has(id))
+      if (toAdd.length > 0) {
+        const { error } = await supabase
+          .from('channel_members')
+          .insert(toAdd.map(user_id => ({ channel_id: channel.id, user_id })))
+        if (error) return { error: 'Could not add the new recipients to this channel.' }
+      }
 
-    if (!error) {
-      await sendEmail({
-        to: recipients.map(r => r.email), subject, text: body,
-        senderName: profile.full_name,
-        url: `${window.location.origin}/chat`,
-      })
-      toast.success('Email sent.')
+      const { data: msg, error } = await supabase
+        .from('messages')
+        .insert({
+          channel_id: channel.id,
+          sender_id: profile.id,
+          body,
+          mentions: recipients.map(r => ({ type: 'user', id: r.id, label: r.full_name })),
+          mentioned_user_ids: recipients.map(r => r.id),
+          email_subject: subject,
+          email_to: recipients.map(r => ({ id: r.id, label: r.full_name, email: r.email })),
+        })
+        .select('*')
+        .single()
+
+      if (error) return { error: 'Could not post the email to this channel. You may not have permission.' }
+
       onSent?.(msg)
-    } else {
-      toast.error('Could not send email.')
+
+      const { ok, error: mailError } = await sendEmail({
+        to: recipients.map(r => r.email).filter(Boolean),
+        subject,
+        text: body,
+        senderName: profile.full_name,
+        url: chatUrl(),
+      })
+
+      if (!ok) return { error: `Posted to the channel, but delivery failed: ${mailError}` }
+
+      toast.success(`Email sent to ${recipients.length} ${recipients.length === 1 ? 'person' : 'people'}.`)
+      setShowEmailPanel(false)
+      return { ok: true }
+    } catch (err) {
+      return { error: err?.message ?? 'Could not send the email.' }
     }
-    setShowEmailPanel(false)
   }
 
   if (disabled) {
@@ -223,6 +250,7 @@ export default function MessageComposer({
       {showEmailPanel && (
         <EmailComposerPanel
           channelMembers={channelMembers}
+          allMembers={allMembers}
           onSend={handleSendEmail}
           onCancel={() => setShowEmailPanel(false)}
         />
@@ -271,36 +299,58 @@ export default function MessageComposer({
         </div>
       )}
 
-      <div className="flex items-end gap-2">
-        <button
-          onClick={() => setShowEmailPanel(s => !s)}
-          title="Compose a structured email"
-          className={`p-2 rounded-lg transition-colors flex-shrink-0 ${showEmailPanel ? 'bg-brand-600 text-white' : 'text-gray-500 hover:text-gray-200 hover:bg-gray-800'}`}
-        >
-          <Plus size={16} />
-        </button>
-        <textarea
-          ref={taRef}
-          className="input resize-none flex-1 py-2"
-          rows={2}
-          placeholder="Message... use @ to mention"
-          value={text}
-          onChange={handleChange}
-          onKeyDown={e => {
-            if (e.key === 'Enter' && !e.shiftKey && !popover) {
-              e.preventDefault()
-              handleSend()
-            }
-            if (e.key === 'Escape') closePopover()
-          }}
-        />
-        <button
-          onClick={handleSend}
-          disabled={sending || !text.trim()}
-          className="btn-primary flex items-center gap-1.5 px-3 py-2 h-fit disabled:opacity-50"
-        >
-          <Send size={15} />
-        </button>
+      {!showEmailPanel && (
+        <div className="flex items-end gap-2">
+          <textarea
+            ref={taRef}
+            className="input resize-none flex-1 py-2"
+            rows={2}
+            placeholder="Message... use @ to mention"
+            value={text}
+            onChange={handleChange}
+            onKeyDown={e => {
+              if (e.key === 'Enter' && !e.shiftKey && !popover) {
+                e.preventDefault()
+                handleSend()
+              }
+              if (e.key === 'Escape') closePopover()
+            }}
+          />
+          <button
+            onClick={handleSend}
+            disabled={sending || !text.trim()}
+            aria-label="Send message"
+            className="btn-primary flex items-center gap-1.5 px-3 py-2 h-fit disabled:opacity-50"
+          >
+            <Send size={15} />
+          </button>
+        </div>
+      )}
+
+      <div className="flex items-center gap-3 pt-2">
+        <div className="flex items-center gap-1 bg-gray-900 border border-gray-800 rounded-lg p-0.5">
+          <button
+            onClick={() => setShowEmailPanel(false)}
+            className={`flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-md transition-colors ${
+              showEmailPanel ? 'text-gray-500 hover:text-gray-300' : 'bg-gray-800 text-gray-100'
+            }`}
+          >
+            <MessageSquare size={12} /> Chat
+          </button>
+          <button
+            onClick={() => setShowEmailPanel(true)}
+            className={`flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-md transition-colors ${
+              showEmailPanel ? 'bg-brand-600 text-white' : 'text-gray-500 hover:text-gray-300'
+            }`}
+          >
+            <Mail size={12} /> Email
+          </button>
+        </div>
+        <p className="text-[11px] text-gray-600 hidden sm:block">
+          {showEmailPanel
+            ? 'Email lands in their inbox and in this channel.'
+            : 'Enter to send · @ to mention · Email to reach inboxes.'}
+        </p>
       </div>
     </div>
   )

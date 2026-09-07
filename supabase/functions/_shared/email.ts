@@ -15,7 +15,9 @@ const GMAIL_SENDER = Deno.env.get('GMAIL_SENDER')
 
 export const SITE_URL = (Deno.env.get('SITE_URL') ?? 'http://platform.bthstnn.org').replace(/\/$/, '')
 
-const LOGO_URL = `${SITE_URL}/tnn-logo.png`
+// The site redirects http to https; some mail clients will not follow that
+// for images, so the logo is always requested over https.
+const LOGO_URL = `${SITE_URL.replace(/^http:/, 'https:')}/tnn-logo.png`
 
 // Brand palette, matching tailwind.config.js
 const BRAND = '#3a5fd9'

@@ -8,7 +8,7 @@ import Spinner from '../components/ui/Spinner'
 import ErrorState from '../components/ui/ErrorState'
 import { format, isAfter, isBefore, addDays } from 'date-fns'
 import { AlertTriangle, Clock, Film, CheckSquare, Bell } from 'lucide-react'
-import SlackReminderModal from '../components/dashboard/SlackReminderModal'
+import ReminderModal from '../components/dashboard/ReminderModal'
 
 function StatCard({ icon: Icon, label, value, color = 'text-brand-400' }) {
   return (
@@ -96,7 +96,7 @@ export default function Dashboard() {
             onClick={() => setShowReminder(true)}
             className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-200 border border-gray-800 hover:border-gray-700 rounded-lg px-2.5 py-1.5 transition-colors"
           >
-            <Bell size={12} /> Send Slack Reminder
+            <Bell size={12} /> Send Reminder
           </button>
         )}
       </div>
@@ -104,7 +104,7 @@ export default function Dashboard() {
         title={`Hey, ${profile?.full_name?.split(' ')[0] ?? 'there'} 👋`}
         subtitle={isExec ? 'Segments, tasks, assignments, deadlines, and production workflow.' : 'Your assignments and tasks live here. Public publishing happens in the Public CMS.'}
       />
-      <SlackReminderModal open={showReminder} onClose={() => setShowReminder(false)} />
+      <ReminderModal open={showReminder} onClose={() => setShowReminder(false)} />
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
         <StatCard icon={Film}          label={isExec ? 'Total Segments' : 'My Segments'} value={segments.length} color="text-brand-400" />
         <StatCard icon={CheckSquare}   label="Open Tasks"    value={tasks.length}    color="text-teal-400" />

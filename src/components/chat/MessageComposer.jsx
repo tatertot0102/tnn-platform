@@ -164,8 +164,10 @@ export default function MessageComposer({
       if (channel.type === 'announcement') {
         await sendEmail({
           to: channelMembers.map(m => m.email),
-          subject: `📢 ${channel.name || 'Announcement'}`,
+          subject: channel.name || 'Announcement',
           text: trimmed,
+          senderName: profile.full_name,
+          url: `${window.location.origin}/chat`,
         })
       }
 
@@ -195,7 +197,11 @@ export default function MessageComposer({
       .single()
 
     if (!error) {
-      await sendEmail({ to: recipients.map(r => r.email), subject, text: body })
+      await sendEmail({
+        to: recipients.map(r => r.email), subject, text: body,
+        senderName: profile.full_name,
+        url: `${window.location.origin}/chat`,
+      })
       toast.success('Email sent.')
       onSent?.(msg)
     } else {

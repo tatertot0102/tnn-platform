@@ -60,10 +60,14 @@ Open http://localhost:5173/
 http://platform.bthstnn.org/login
 http://platform.bthstnn.org/reset-password
 ```
-4. Set the Supabase Edge Function secrets for Slack notifications:
+4. Set the Supabase Edge Function secrets for email notifications:
 ```
 SITE_URL=http://platform.bthstnn.org
 ALLOWED_ORIGINS=http://platform.bthstnn.org
+GOOGLE_OAUTH_CLIENT_ID=...
+GOOGLE_OAUTH_CLIENT_SECRET=...
+GOOGLE_OAUTH_REFRESH_TOKEN=...
+GMAIL_SENDER=bthstnn@gmail.com
 ```
 5. Push your code:
 ```bash
@@ -130,3 +134,31 @@ supabase/
 
 Members sign up themselves at the login page. By default they get `member` role.
 To promote someone to exec, go to **Supabase → Table Editor → profiles** and change their role to `exec`.
+
+---
+
+## Email notifications
+
+Every notification the platform sends is an email, built from one shared
+branded template in `supabase/functions/_shared/email.ts`. Change that file
+and every email changes with it.
+
+### Deploying the functions
+```bash
+npx supabase functions deploy notify
+npx supabase functions deploy send-email
+```
+
+### Database webhooks
+In Supabase, go to **Database → Webhooks** and point these at the `notify`
+function (HTTP POST). The old `slack-notify` webhooks should be deleted.
+
+| Table | Events | Email sent |
+|---|---|---|
+| `segment_roles` | Insert | You were assigned a role |
+| `subtasks` | Insert, Update | Task assigned, deadline changed |
+| `segments` | Update | Segment status changed |
+| `approval_gates` | Insert, Update | Approval needed, approved, changes requested |
+| `approval_feedback` | Insert | New feedback on a gate |
+
+The Send Reminder button on the dashboard calls the same function directly.

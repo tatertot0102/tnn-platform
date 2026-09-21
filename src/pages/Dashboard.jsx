@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import { Link } from 'react-router-dom'
 import { PriorityBadge, StatusBadge, DeptBadge } from '../components/ui/Badge'
 import PageHeader from '../components/ui/PageHeader'
-import Spinner from '../components/ui/Spinner'
+import { PageSkeleton } from '../components/ui/Skeleton'
 import ErrorState from '../components/ui/ErrorState'
 import { format, isAfter, isBefore, addDays } from 'date-fns'
 import { AlertTriangle, Clock, Film, CheckSquare, Bell } from 'lucide-react'
@@ -24,69 +25,56 @@ function StatCard({ icon: Icon, label, value, color = 'text-brand-400' }) {
   )
 }
 
+async function fetchDashboard(profileId, isExec) {
+  const ok = ({ data, error }) => { if (error) throw error; return data ?? [] }
+
+  if (isExec) {
+    // Execs see everything
+    const [segments, tasks] = await Promise.all([
+      supabase.from('segments').select('*, segment_roles(user_id, role_type)')
+        .order('due_date', { ascending: true }).limit(20).then(ok),
+      supabase.from('tasks').select('*').neq('status', 'done')
+        .order('due_date', { ascending: true }).limit(10).then(ok),
+    ])
+    return { segments, tasks }
+  }
+
+  // Members: only segments they have a role on, only tasks assigned to them
+  const segmentsQuery = supabase.from('segment_roles').select('segment_id').eq('user_id', profileId).then(ok)
+    .then(rows => {
+      const ids = [...new Set(rows.map(r => r.segment_id))]
+      if (!ids.length) return []
+      return supabase.from('segments').select('*, segment_roles(user_id, role_type)')
+        .in('id', ids).order('due_date', { ascending: true }).then(ok)
+    })
+  const [segments, tasks] = await Promise.all([
+    segmentsQuery,
+    supabase.from('tasks').select('*').contains('assignee_ids', [profileId]).neq('status', 'done')
+      .order('due_date', { ascending: true }).limit(10).then(ok),
+  ])
+  return { segments, tasks }
+}
+
 export default function Dashboard() {
   const { profile, isExec } = useAuth()
-  const [segments, setSegments] = useState([])
-  const [tasks, setTasks]       = useState([])
-  const [loading, setLoading]   = useState(true)
-  const [loadError, setLoadError] = useState(false)
   const [showReminder, setShowReminder] = useState(false)
 
-  useEffect(() => { fetchData() }, [profile?.id])
-
-  async function fetchData() {
-    if (!profile) return
-    setLoading(true)
-    setLoadError(false)
-
-    if (isExec) {
-      // Execs see everything
-      const [{ data: segs, error: segError }, { data: taskData, error: taskError }] = await Promise.all([
-        supabase.from('segments').select('*, segment_roles(user_id, role_type)')
-          .order('due_date', { ascending: true }).limit(20),
-        supabase.from('tasks').select('*').neq('status', 'done')
-          .order('due_date', { ascending: true }).limit(10),
-      ])
-      if (segError || taskError) { setLoadError(true); setLoading(false); return }
-      setSegments(segs ?? [])
-      setTasks(taskData ?? [])
-    } else {
-      // Members: only segments they have a role on, only tasks assigned to them
-      const { data: roleRows, error: roleError } = await supabase
-        .from('segment_roles')
-        .select('segment_id')
-        .eq('user_id', profile.id)
-
-      if (roleError) { setLoadError(true); setLoading(false); return }
-
-      const segIds = [...new Set((roleRows ?? []).map(r => r.segment_id))]
-
-      const [segsResult, tasksResult] = await Promise.all([
-        segIds.length > 0
-          ? supabase.from('segments').select('*, segment_roles(user_id, role_type)')
-              .in('id', segIds).order('due_date', { ascending: true })
-          : Promise.resolve({ data: [] }),
-        supabase.from('tasks').select('*')
-          .contains('assignee_ids', [profile.id])
-          .neq('status', 'done')
-          .order('due_date', { ascending: true }).limit(10),
-      ])
-
-      if (segsResult.error || tasksResult.error) { setLoadError(true); setLoading(false); return }
-      setSegments(segsResult.data ?? [])
-      setTasks(tasksResult.data ?? [])
-    }
-
-    setLoading(false)
-  }
+  // Cached per user, so returning to the dashboard is instant.
+  const { data, isPending, isError, refetch } = useQuery({
+    queryKey: ['dashboard', profile?.id, isExec],
+    queryFn: () => fetchDashboard(profile.id, isExec),
+    enabled: !!profile?.id,
+  })
+  const segments = data?.segments ?? []
+  const tasks    = data?.tasks ?? []
 
   const today   = new Date()
   const soon    = addDays(today, 7)
   const overdue = segments.filter(s => s.due_date && isBefore(new Date(s.due_date), today) && s.status !== 'done')
   const dueSoon = segments.filter(s => s.due_date && isAfter(new Date(s.due_date), today) && isBefore(new Date(s.due_date), soon) && s.status !== 'done')
 
-  if (loading) return <div className="flex items-center justify-center h-64"><Spinner size={8} /></div>
-  if (loadError) return <ErrorState message="Could not load your dashboard." onRetry={fetchData} />
+  if (isError) return <ErrorState message="Could not load your dashboard." onRetry={refetch} />
+  if (isPending) return <PageSkeleton />
 
   return (
     <div>

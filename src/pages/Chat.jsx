@@ -89,7 +89,7 @@ export default function Chat() {
   const [showSettings, setShowSettings] = useState(false)
   const [showNewDm, setShowNewDm] = useState(false)
 
-  useEffect(() => { if (profile) fetchAll() }, [profile])
+  useEffect(() => { if (profile) fetchAll() }, [profile?.id])
 
   async function fetchAll() {
     setLoading(true)

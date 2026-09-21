@@ -32,7 +32,7 @@ export default function Dashboard() {
   const [loadError, setLoadError] = useState(false)
   const [showReminder, setShowReminder] = useState(false)
 
-  useEffect(() => { fetchData() }, [profile])
+  useEffect(() => { fetchData() }, [profile?.id])
 
   async function fetchData() {
     if (!profile) return

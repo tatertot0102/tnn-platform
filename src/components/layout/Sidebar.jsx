@@ -114,11 +114,25 @@ export default function Sidebar() {
 
   return (
     <>
-      <button className="fixed top-4 left-4 z-50 p-2 bg-gray-900 rounded-lg border border-gray-800 md:hidden" onClick={() => setOpen(!open)}>
-        {open ? <X size={18} /> : <Menu size={18} />}
-      </button>
-      {open && <div className="fixed inset-0 bg-black/60 z-40 md:hidden" onClick={() => setOpen(false)} />}
-      <aside className={`fixed inset-y-0 left-0 z-50 w-56 bg-gray-950 border-r border-gray-800 transform transition-transform md:hidden ${open ? 'translate-x-0' : '-translate-x-full'}`}>
+      {/* Phone top bar: the menu button no longer floats over page content. */}
+      <header className="fixed top-0 inset-x-0 z-40 md:hidden flex items-center gap-3 px-3 pt-[env(safe-area-inset-top)] h-[calc(3.5rem+env(safe-area-inset-top))] bg-gray-950/85 backdrop-blur-md border-b border-gray-800/80">
+        <button type="button" onClick={() => setOpen(!open)} aria-label={open ? 'Close menu' : 'Open menu'} aria-expanded={open}
+          className="p-2 rounded-lg text-gray-300 hover:bg-gray-800 active:scale-95 transition-all duration-fast focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400">
+          {open ? <X size={20} /> : <Menu size={20} />}
+        </button>
+        <div className="w-7 h-7 rounded-md bg-white flex items-center justify-center p-1">
+          <img src={tnnLogo} alt="" className="w-full h-full object-contain" />
+        </div>
+        <span className="font-bold text-white text-sm">TNN</span>
+        <NavLink to="/notifications" aria-label={`Notifications${unreadCount ? `, ${unreadCount} unread` : ''}`}
+          className="ml-auto relative p-2 rounded-lg text-gray-300 hover:bg-gray-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400">
+          <Bell size={19} />
+          {unreadCount > 0 && <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-red-500" />}
+        </NavLink>
+      </header>
+      <div aria-hidden="true" onClick={() => setOpen(false)}
+        className={`fixed inset-0 bg-black/60 z-40 md:hidden transition-opacity duration-normal ${open ? 'opacity-100' : 'opacity-0 pointer-events-none'}`} />
+      <aside className={`fixed inset-y-0 left-0 z-50 w-64 max-w-[85vw] pt-[env(safe-area-inset-top)] bg-gray-950 border-r border-gray-800 transform transition-transform duration-normal ease-out-expo md:hidden ${open ? 'translate-x-0' : '-translate-x-full'}`}>
         <SidebarContent />
       </aside>
       <aside className="hidden md:flex w-56 bg-gray-950 border-r border-gray-800 flex-col fixed inset-y-0 left-0">

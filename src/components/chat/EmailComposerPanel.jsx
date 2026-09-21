@@ -79,7 +79,7 @@ export default function EmailComposerPanel({ channelMembers, allMembers, onSend,
         <div className="flex items-center gap-2">
           <span className="text-xs text-gray-500 w-14 flex-shrink-0">Subject</span>
           <input
-            className="input text-sm flex-1"
+            className="input flex-1"
             placeholder="What is this about?"
             value={subject}
             onChange={e => setSubject(e.target.value)}

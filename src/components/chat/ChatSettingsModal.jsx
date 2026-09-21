@@ -76,8 +76,8 @@ function ChannelRow({ channel, channelMembers, allMembers, onChanged }) {
   return (
     <div className="p-3 bg-gray-800/50 rounded-lg space-y-2.5">
       <div className="flex gap-2">
-        <input className="input text-sm flex-1" value={name} onChange={e => setName(e.target.value)} placeholder="Channel name" />
-        <select className="input text-sm w-auto" value={type} onChange={e => setType(e.target.value)}>
+        <input className="input flex-1" value={name} onChange={e => setName(e.target.value)} placeholder="Channel name" />
+        <select className="input w-auto" value={type} onChange={e => setType(e.target.value)}>
           <option value="channel">Channel</option>
           <option value="announcement">Announcement</option>
         </select>
@@ -149,7 +149,7 @@ function GroupRow({ group, channels, groupMembers, onChanged }) {
       </div>
       {adding ? (
         <div className="flex gap-2">
-          <select className="input text-xs flex-1" value={addChannelId} onChange={e => setAddChannelId(e.target.value)}>
+          <select className="input sm:text-xs flex-1" value={addChannelId} onChange={e => setAddChannelId(e.target.value)}>
             <option value="">Pick a channel...</option>
             {available.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>

@@ -6,6 +6,7 @@
 @layer base {
   body {
     @apply bg-gray-950 text-gray-100 antialiased;
+    -webkit-tap-highlight-color: transparent;
   }
   * { box-sizing: border-box; }
 }
@@ -15,18 +16,38 @@
   to { opacity: 1; transform: translateY(0); }
 }
 
+/* Controls that only appear on hover stay visible where there is no hover. */
+@media (hover: hover) {
+  .reveal-on-hover { opacity: 0; }
+  .group:hover .reveal-on-hover,
+  .reveal-on-hover:focus-visible { opacity: 1; }
+}
+
+.no-scrollbar { scrollbar-width: none; }
+.no-scrollbar::-webkit-scrollbar { display: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
 @layer components {
   .card {
     @apply bg-gray-900 border border-gray-800 rounded-xl;
   }
   .btn-primary {
-    @apply bg-brand-600 hover:bg-brand-400 text-white px-4 py-2 rounded-lg font-medium text-sm transition-colors;
+    @apply bg-brand-600 hover:bg-brand-400 text-white px-4 py-2 rounded-lg font-medium text-sm transition-all duration-fast active:scale-[0.97] disabled:opacity-50 disabled:active:scale-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-950;
   }
   .btn-ghost {
-    @apply hover:bg-gray-800 text-gray-400 hover:text-gray-100 px-3 py-2 rounded-lg text-sm transition-colors;
+    @apply hover:bg-gray-800 text-gray-400 hover:text-gray-100 px-3 py-2 rounded-lg text-sm transition-all duration-fast active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400;
   }
   .input {
-    @apply bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:border-brand-400 w-full transition-colors;
+    /* 16px on phones so iOS does not zoom in when a field is tapped. */
+    @apply bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-base sm:text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:border-brand-400 w-full transition-colors duration-fast;
   }
   .badge {
     @apply inline-flex items-center px-2 py-0.5 rounded text-xs font-medium;

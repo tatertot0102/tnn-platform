@@ -332,7 +332,7 @@ export default function Tasks() {
   const [newSubtaskFor, setNewSubtaskFor] = useState(null)
   const [subtaskTitle, setSubtaskTitle] = useState('')
 
-  useEffect(() => { fetchAll() }, [profile])
+  useEffect(() => { fetchAll() }, [profile?.id])
 
   useEffect(() => {
     if (!highlightId || loading) return
@@ -542,7 +542,7 @@ export default function Tasks() {
                             <div className="flex items-center gap-2 pl-9 pr-4 py-2 border-t border-gray-800/60">
                               <input
                                 autoFocus
-                                className="input text-xs flex-1 py-1.5"
+                                className="input sm:text-xs flex-1 py-1.5"
                                 placeholder="Sub-task title..."
                                 value={subtaskTitle}
                                 onChange={e => setSubtaskTitle(e.target.value)}

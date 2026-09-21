@@ -22,8 +22,8 @@ export default function Members() {
   return (
     <div>
       <PageHeader title="Members" subtitle={`${members.length} people`} />
-      <div className="card overflow-hidden">
-        <table className="w-full text-sm">
+      <div className="card overflow-x-auto">
+        <table className="w-full min-w-[34rem] text-sm">
           <thead>
             <tr className="border-b border-gray-800">
               {['Member', 'Email', 'Slack User ID', 'Role'].map(h => (
@@ -45,7 +45,7 @@ export default function Members() {
                 <td className="px-4 py-3 text-gray-400 text-xs">{m.email}</td>
                 <td className="px-4 py-3">
                   <input
-                    className="input text-xs w-36"
+                    className="input sm:text-xs w-36"
                     placeholder="U0123456789"
                     defaultValue={m.slack_user_id ?? ''}
                     onBlur={e => updateField(m.id, 'slack_user_id', e.target.value.trim() || null)}

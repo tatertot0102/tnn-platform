@@ -6,8 +6,9 @@
 //   segment_roles     INSERT
 //   subtasks          INSERT, UPDATE
 //   segments          UPDATE
-//   approval_gates    INSERT, UPDATE
-//   approval_feedback INSERT
+//   approval_gates          UPDATE
+//   approval_gate_approvers INSERT
+//   approval_feedback       INSERT
 //
 // The Send Reminder modal posts { type: 'REMINDER' } to it directly.
 
@@ -156,22 +157,39 @@ async function segmentStatusChanged(oldRecord: any, record: any) {
   })
 }
 
-async function approvalRequested(record: any) {
-  if (!record.approver_id) return
-  const [to, segment] = await Promise.all([emailsFor([record.approver_id]), getSegment(record.segment_id)])
+async function getGate(gateId: string) {
+  const { data } = await supabase.from('approval_gates').select('*').eq('id', gateId).single()
+  return data
+}
+
+async function gateApproverIds(gateId: string): Promise<string[]> {
+  const { data } = await supabase.from('approval_gate_approvers').select('user_id').eq('gate_id', gateId)
+  return (data ?? []).map(r => r.user_id).filter(Boolean)
+}
+
+// Fires once per approver row, so each approver gets their own email.
+async function approvalRequested(approverRow: any) {
+  const gate = await getGate(approverRow.gate_id)
+  if (!gate) return
+  const [to, segment, approverIds] = await Promise.all([
+    emailsFor([approverRow.user_id]), getSegment(gate.segment_id), gateApproverIds(gate.id),
+  ])
   if (!to.length || !segment) return
 
-  await sendTemplated(to, `Your approval is needed: ${record.title}`, {
+  const others = approverIds.length - 1
+  await sendTemplated(to, `Your approval is needed: ${gate.title}`, {
     kicker: 'Approval needed',
-    heading: record.title,
-    intro: `You are the approver on this gate. Everything below it on ${segment.title} stays blocked until you approve it.`,
+    heading: gate.title,
+    intro: others > 0
+      ? `You are one of ${approverIds.length} approvers on this gate. Everything below it on ${segment.title} stays blocked until all of you approve.`
+      : `You are the approver on this gate. Everything below it on ${segment.title} stays blocked until you approve it.`,
     accent: 'amber',
     fields: [
       { label: 'Segment', value: segment.title },
-      { label: 'Due', value: fmtDate(record.due_date) },
+      { label: 'Due', value: fmtDate(gate.due_date) },
     ],
-    quote: record.description || undefined,
-    cta: { label: 'Review and approve', url: gateUrl(segment.id, record.id) },
+    quote: gate.description || undefined,
+    cta: { label: 'Review and approve', url: gateUrl(segment.id, gate.id) },
   })
 }
 
@@ -206,7 +224,9 @@ async function approvalFeedback(record: any) {
     .from('approval_gates').select('*').eq('id', record.gate_id).single()
   if (!gate) return
 
-  const recipients = [gate.approver_id, gate.created_by].filter(id => id && id !== record.author_id) as string[]
+  const approverIds = await gateApproverIds(gate.id)
+  const recipients = [...new Set([...approverIds, gate.created_by])]
+    .filter(id => id && id !== record.author_id) as string[]
   const [to, segment, author] = await Promise.all([
     emailsFor(recipients), getSegment(gate.segment_id), nameFor(record.author_id),
   ])
@@ -266,12 +286,9 @@ Deno.serve(async (req) => {
 
     else if (table === 'segments' && type === 'UPDATE') await segmentStatusChanged(old_record, record)
 
-    else if (table === 'approval_gates' && type === 'INSERT') await approvalRequested(record)
+    else if (table === 'approval_gate_approvers' && type === 'INSERT') await approvalRequested(record)
 
-    else if (table === 'approval_gates' && type === 'UPDATE') {
-      if (record.approver_id !== old_record?.approver_id) await approvalRequested(record)
-      await approvalDecided(old_record, record)
-    }
+    else if (table === 'approval_gates' && type === 'UPDATE') await approvalDecided(old_record, record)
 
     else if (table === 'approval_feedback' && type === 'INSERT') await approvalFeedback(record)
 

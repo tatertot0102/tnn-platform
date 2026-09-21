@@ -1,7 +1,7 @@
 -- =============================================
 -- TNN Platform - Database webhooks for the notify function
 --
--- Replaces the old slack-notify webhooks. Applied by
+-- Replaces the old slack-notify webhooks. Run after add_multi_approvers.sql. Applied by
 -- supabase/apply-webhooks.sh, which substitutes __FUNCTION_URL__ and
 -- __ANON_KEY__ from your .env so no key is committed.
 --
@@ -69,10 +69,20 @@ create trigger notify_segments
     '{}', '5000'
   );
 
--- Approval needed, approved, changes requested
+-- Approved, changes requested (the gate status is derived from its approvers)
 drop trigger if exists notify_approval_gates on public.approval_gates;
 create trigger notify_approval_gates
-  after insert or update on public.approval_gates
+  after update on public.approval_gates
+  for each row execute function supabase_functions.http_request(
+    '__FUNCTION_URL__', 'POST',
+    '{"Content-Type":"application/json","Authorization":"Bearer __ANON_KEY__"}',
+    '{}', '5000'
+  );
+
+-- Approval needed, one email per approver added
+drop trigger if exists notify_approval_gate_approvers on public.approval_gate_approvers;
+create trigger notify_approval_gate_approvers
+  after insert on public.approval_gate_approvers
   for each row execute function supabase_functions.http_request(
     '__FUNCTION_URL__', 'POST',
     '{"Content-Type":"application/json","Authorization":"Bearer __ANON_KEY__"}',

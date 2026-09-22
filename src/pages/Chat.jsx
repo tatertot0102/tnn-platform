@@ -187,10 +187,10 @@ export default function Chat() {
   if (loadError) return <ErrorState message="Could not load chat." onRetry={fetchAll} />
 
   return (
-    <div className="fixed inset-y-0 right-0 left-0 md:left-56 flex border-t border-gray-800 bg-gray-950">
+    <div className="fixed top-[calc(3.5rem+env(safe-area-inset-top))] md:top-0 bottom-0 right-0 left-0 md:left-56 flex bg-gray-950 pb-[env(safe-area-inset-bottom)]">
       {/* Sidebar */}
       <div className={`${selectedId ? 'hidden md:flex' : 'flex'} w-full md:w-64 flex-shrink-0 border-r border-gray-800 flex-col overflow-hidden`}>
-        <div className="p-3 pl-14 md:pl-3 border-b border-gray-800 flex items-center justify-between">
+        <div className="p-3 border-b border-gray-800 flex items-center justify-between">
           <h2 className="text-sm font-semibold text-gray-200">Chat</h2>
           <div className="flex items-center gap-1">
             {isExec && (
@@ -248,7 +248,7 @@ export default function Chat() {
           <div className="flex-1 flex items-center justify-center text-gray-600 text-sm">Select a channel to get started.</div>
         ) : (
           <>
-            <div className="pl-14 md:pl-4 pr-4 py-3 border-b border-gray-800 flex items-center justify-between">
+            <div className="px-4 py-3 border-b border-gray-800 flex items-center justify-between">
               <div className="min-w-0 flex items-center gap-2">
                 <button onClick={() => setSelectedId(null)} className="md:hidden text-gray-500 hover:text-gray-200 flex-shrink-0">
                   <ArrowLeft size={16} />

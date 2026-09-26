@@ -1,0 +1,1 @@
+import{o as e}from"./en-US-BX-iT8eX.js";function t(t){return e(t,Date.now())}export{t};

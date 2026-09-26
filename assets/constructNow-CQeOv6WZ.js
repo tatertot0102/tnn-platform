@@ -1,0 +1,1 @@
+import{o as e}from"./en-US-DBdctKPW.js";function t(t){return e(t,Date.now())}export{t};

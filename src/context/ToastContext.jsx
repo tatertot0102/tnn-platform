@@ -33,7 +33,8 @@ export function ToastProvider({ children }) {
   return (
     <ToastContext.Provider value={toast}>
       {children}
-      <div className="fixed bottom-4 right-4 z-[100] flex flex-col gap-2 max-w-sm">
+      {/* Sits above the upload panel when it's showing. */}
+      <div className="fixed right-4 z-[100] flex flex-col gap-2 max-w-sm" style={{ bottom: 'calc(var(--upload-dock-h, 0px) + 1rem)' }}>
         {toasts.map(t => {
           const Icon = ICONS[t.type] ?? Info
           return (

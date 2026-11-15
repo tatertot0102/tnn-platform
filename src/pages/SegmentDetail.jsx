@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { lazy, Suspense, useState } from 'react'
 import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
@@ -19,6 +19,8 @@ import {
   Trash2, Check, ArrowLeft, ExternalLink,
   Plus, UserPlus, X, Flag, Link2, Maximize2
 } from 'lucide-react'
+
+const SegmentMedia = lazy(() => import('../components/media/SegmentMedia'))
 
 const PUBLIC_CMS_VIDEO_URL = 'https://bthstnn.org/#/newsroom/videos'
 const PUBLIC_STORY_URL = 'https://bthstnn.org/#/videos/story'
@@ -202,7 +204,7 @@ export default function SegmentDetail() {
   const toast = useToast()
   const isDesktop = useMediaQuery(DESKTOP_QUERY)
   const [saving, setSaving]         = useState(false)
-  const [activeTab, setActiveTab]   = useState(searchParams.get('tab') === 'subtasks' || searchParams.get('gate') ? 'subtasks' : 'overview')
+  const [activeTab, setActiveTab]   = useState(searchParams.get('tab') === 'media' ? 'media' : searchParams.get('tab') === 'subtasks' || searchParams.get('gate') ? 'subtasks' : 'overview')
   const [showGuestModal, setShowGuestModal]   = useState(false)
   const [handoffSaving, setHandoffSaving] = useState(false)
   const [handoffMessage, setHandoffMessage] = useState('')
@@ -337,6 +339,9 @@ export default function SegmentDetail() {
 
   const permanentRoles   = roles.filter(r => !r.is_guest)
   const guestRoles       = roles.filter(r => r.is_guest)
+  // One person holding several roles still counts once toward the team size.
+  const crewCount        = new Set(permanentRoles.map(r => r.user_id)).size
+  const guestCount       = new Set(guestRoles.map(r => r.user_id)).size
   const completedCount   = subtasks.filter(t => t.completed).length
   const overdueCount     = subtasks.filter(t => isOverdue(t.due_date, t.completed)).length
   const publicStatus     = publicVideoStatus(publicVideo)
@@ -425,7 +430,7 @@ export default function SegmentDetail() {
           <div>
             <p className="text-xs text-gray-500 mb-1">Team</p>
             <p className="text-sm text-gray-200">
-              {permanentRoles.length} crew{guestRoles.length > 0 ? ` + ${guestRoles.length} guest${guestRoles.length > 1 ? 's' : ''}` : ''}
+              {crewCount} crew{guestCount > 0 ? ` + ${guestCount} guest${guestCount > 1 ? 's' : ''}` : ''}
             </p>
           </div>
         </div>
@@ -490,7 +495,7 @@ export default function SegmentDetail() {
 
       {/* Tabs */}
       <div className="flex gap-1 border-b border-gray-800 mb-6 -mx-4 px-4 md:mx-0 md:px-0 overflow-x-auto no-scrollbar" role="tablist">
-        {['overview', 'subtasks', 'roles', 'notes'].map(t => (
+        {['overview', 'subtasks', 'media', 'roles', 'notes'].map(t => (
           <button key={t} onClick={() => openTab(t)} role="tab" aria-selected={activeTab === t}
             className={`flex items-center whitespace-nowrap px-3 md:px-4 py-2.5 text-sm font-medium capitalize transition-colors duration-fast border-b-2 -mb-px focus-visible:outline-none focus-visible:bg-gray-800/60 ${activeTab === t ? 'border-brand-400 text-brand-400' : 'border-transparent text-gray-500 hover:text-gray-300'}`}>
             {t}
@@ -618,6 +623,13 @@ export default function SegmentDetail() {
           </div>
           <SubtaskBoard work={work} highlightId={searchParams.get('highlight')} highlightGateId={searchParams.get('gate')} />
         </div>
+      )}
+
+      {/* ── Media ── */}
+      {activeTab === 'media' && (
+        <Suspense fallback={<div className="py-10 flex justify-center"><Spinner size={6} /></div>}>
+          <SegmentMedia segment={seg} />
+        </Suspense>
       )}
 
       {/* ── Roles ── */}

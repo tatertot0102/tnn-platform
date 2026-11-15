@@ -1,6 +1,7 @@
 import { Suspense } from 'react'
 import { Outlet, useLocation, useMatch } from 'react-router-dom'
 import Sidebar from './Sidebar'
+import UploadDock from '../media/UploadDock'
 import { PageSkeleton } from '../ui/Skeleton'
 
 export default function AppLayout() {
@@ -29,6 +30,7 @@ export default function AppLayout() {
           </div>
         )}
       </main>
+      <UploadDock />
     </div>
   )
 }

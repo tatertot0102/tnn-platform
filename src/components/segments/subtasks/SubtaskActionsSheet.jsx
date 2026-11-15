@@ -64,7 +64,7 @@ export default function SubtaskActionsSheet({ task, members, canEdit, isExec, pr
         {canSubmit && (
           <button type="button" onClick={() => onSubmitClick(task)}
             className="w-full flex items-center justify-center gap-2 min-h-11 rounded-xl border border-gray-700 text-sm text-gray-200 hover:bg-gray-800 transition-colors duration-fast">
-            <Link2 size={15} /> {task.submit_url ? 'Change submitted link' : 'Submit a link'}
+            <Link2 size={15} /> Submit a draft, final or link
           </button>
         )}
         {task.submit_url && (

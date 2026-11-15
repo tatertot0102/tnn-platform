@@ -1,0 +1,12 @@
+{
+  "name": "tnn-media-server",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Serves segment media folders from the Mac to the TNN platform",
+  "type": "module",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test"
+  }
+}

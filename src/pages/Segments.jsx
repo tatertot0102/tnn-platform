@@ -10,12 +10,14 @@ import ErrorState from '../components/ui/ErrorState'
 import { useToast } from '../context/ToastContext'
 import { PRIORITIES, STATUSES, DEPARTMENTS } from '../lib/constants'
 import { format } from 'date-fns'
+import { createSegmentFolder, isMediaConfigured } from '../lib/media'
 import { Plus, Search, Trash2 } from 'lucide-react'
 
 const DEFAULT_MILESTONES = ['Pre-Production', 'Production', 'Post-Production']
 
 function CreateSegmentModal({ open, onClose, onCreated }) {
   const { profile } = useAuth()
+  const toast = useToast()
   const [form, setForm] = useState({
     title: '', priority: 'medium', status: 'not-started',
     departments: [], start_date: '', due_date: '', notes: '',
@@ -43,6 +45,13 @@ function CreateSegmentModal({ open, onClose, onCreated }) {
     await supabase.from('milestones').insert(
       DEFAULT_MILESTONES.map((title, i) => ({ segment_id: seg.id, title, position: i }))
     )
+
+    // Give every new segment its own media folder. If the Mac is offline the
+    // segment is still created and the Media tab offers to make the folder later.
+    if (isMediaConfigured) {
+      createSegmentFolder(seg.id, seg.title)
+        .catch(err => toast.info(`Segment created. Media folder not made yet: ${err.message}`))
+    }
 
     setLoading(false)
     setForm({ title: '', priority: 'medium', status: 'not-started', departments: [], start_date: '', due_date: '', notes: '' })

@@ -99,6 +99,16 @@ create trigger notify_approval_feedback
     '{}', '5000'
   );
 
+-- Someone @mentioned in chat
+drop trigger if exists notify_messages on public.messages;
+create trigger notify_messages
+  after insert on public.messages
+  for each row execute function supabase_functions.http_request(
+    '__FUNCTION_URL__', 'POST',
+    '{"Content-Type":"application/json","Authorization":"Bearer __ANON_KEY__"}',
+    '{}', '5000'
+  );
+
 -- Show what is now wired up.
 select c.relname as table_name, tg.tgname as trigger_name
 from pg_trigger tg

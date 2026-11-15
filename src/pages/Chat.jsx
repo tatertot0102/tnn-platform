@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import Spinner from '../components/ui/Spinner'
@@ -7,11 +8,24 @@ import ChatSettingsModal from '../components/chat/ChatSettingsModal'
 import NewDmModal from '../components/chat/NewDmModal'
 import { format } from 'date-fns'
 import { Hash, Megaphone, MessageCircle, Plus, Link2, Lock, Mail, ArrowLeft, Settings } from 'lucide-react'
-import { splitBodyWithMentions } from '../lib/chat'
+import { splitBodyWithMentions, splitTextWithLinks } from '../lib/chat'
 import MentionChip from '../components/chat/MentionChip'
 import ErrorState from '../components/ui/ErrorState'
 import ApprovalFeedbackCard from '../components/segments/ApprovalFeedbackCard'
 import { useToast } from '../context/ToastContext'
+
+function LinkedText({ text }) {
+  return splitTextWithLinks(text).map((part, i) =>
+    part.type === 'link'
+      ? (
+        <a key={i} href={part.href} target="_blank" rel="noopener noreferrer"
+          className="text-brand-400 underline decoration-brand-400/40 underline-offset-2 hover:decoration-brand-400 break-all">
+          {part.value}
+        </a>
+      )
+      : <span key={i}>{part.value}</span>
+  )
+}
 
 function MessageBody({ body, mentions }) {
   return (
@@ -19,7 +33,7 @@ function MessageBody({ body, mentions }) {
       {splitBodyWithMentions(body, mentions).map((part, i) =>
         part.type === 'mention'
           ? <MentionChip key={i} mention={part.mention} />
-          : <span key={i}>{part.value}</span>
+          : <LinkedText key={i} text={part.value} />
       )}
     </>
   )
@@ -41,7 +55,7 @@ function EmailCard({ msg }) {
       </div>
       <div className="p-3">
         <p className="text-sm font-semibold text-gray-100 mb-1.5">{msg.email_subject}</p>
-        <p className="text-sm text-gray-300 whitespace-pre-wrap break-words">{msg.body}</p>
+        <p className="text-sm text-gray-300 whitespace-pre-wrap break-words"><LinkedText text={msg.body} /></p>
       </div>
     </div>
   )
@@ -88,6 +102,9 @@ export default function Chat() {
   const [messages, setMessages] = useState([])
   const [showSettings, setShowSettings] = useState(false)
   const [showNewDm, setShowNewDm] = useState(false)
+  // Mention emails link to /chat?channel=<id> so the thread opens directly.
+  const [searchParams] = useSearchParams()
+  const linkedChannelId = searchParams.get('channel')
 
   useEffect(() => { if (profile) fetchAll() }, [profile?.id])
 
@@ -125,7 +142,8 @@ export default function Chat() {
     setSubtasks(subs ?? [])
     setTasks(tsks ?? [])
     setLoading(false)
-    setSelectedId(prev => prev ?? (chs ?? []).find(c => c.type !== 'dm')?.id ?? (chs ?? [])[0]?.id ?? null)
+    const linked = (chs ?? []).find(c => c.id === linkedChannelId)?.id
+    setSelectedId(prev => prev ?? linked ?? (chs ?? []).find(c => c.type !== 'dm')?.id ?? (chs ?? [])[0]?.id ?? null)
   }
 
   useEffect(() => {

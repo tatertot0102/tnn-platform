@@ -26,4 +26,9 @@ export default defineConfig([
       'no-unused-vars': ['error', { varsIgnorePattern: '^[A-Z_]' }],
     },
   },
+  {
+    // The media server runs on Node on the Mac, not in the browser.
+    files: ['media-server/**/*.js'],
+    languageOptions: { globals: globals.node },
+  },
 ])

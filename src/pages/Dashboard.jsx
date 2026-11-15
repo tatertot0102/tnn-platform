@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import { Link } from 'react-router-dom'
-import { PriorityBadge, StatusBadge, DeptBadge } from '../components/ui/Badge'
+import { StatusBadge, DeptBadge } from '../components/ui/Badge'
 import PageHeader from '../components/ui/PageHeader'
 import { PageSkeleton } from '../components/ui/Skeleton'
 import ErrorState from '../components/ui/ErrorState'
@@ -146,7 +146,6 @@ export default function Dashboard() {
                   <div className="flex items-center justify-between gap-2">
                     <p className="text-sm text-gray-100 truncate">{task.title}</p>
                     <div className="flex items-center gap-2 flex-shrink-0">
-                      <PriorityBadge value={task.priority} />
                       {task.due_date && (
                         <span className={`text-xs ${isBefore(new Date(task.due_date), today) ? 'text-red-400' : 'text-gray-500'}`}>
                           {format(new Date(task.due_date), 'MMM d')}

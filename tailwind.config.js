@@ -30,12 +30,15 @@ export default {
         'page-in':  { from: { opacity: '0', transform: 'translateY(6px)' }, to: { opacity: '1', transform: 'none' } },
         'pop-in':   { from: { opacity: '0', transform: 'scale(0.97) translateY(4px)' }, to: { opacity: '1', transform: 'none' } },
         'sheet-in': { from: { transform: 'translateY(100%)' }, to: { transform: 'none' } },
+        // A just-uploaded file glows briefly so it's easy to spot.
+        fresh:      { from: { boxShadow: 'inset 0 0 0 999px rgb(102 144 245 / 0.22)' }, to: { boxShadow: 'inset 0 0 0 999px rgb(102 144 245 / 0)' } },
       },
       animation: {
         'fade-in':  'fade-in 150ms ease-out both',
         'page-in':  'page-in 260ms cubic-bezier(0.16, 1, 0.3, 1) both',
         'pop-in':   'pop-in 180ms cubic-bezier(0.16, 1, 0.3, 1) both',
         'sheet-in': 'sheet-in 300ms cubic-bezier(0.16, 1, 0.3, 1) both',
+        fresh:      'fresh 2.4s ease-out both',
       },
     },
   },

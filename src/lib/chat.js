@@ -25,6 +25,25 @@ export function splitBodyWithMentions(body, mentions = []) {
   return parts
 }
 
+// Matches http(s) links and bare www. links. Trailing punctuation that
+// usually ends a sentence is left out of the link.
+const URL_RE = /\b(?:https?:\/\/|www\.)[^\s<]+[^\s<.,:;"')\]!?]/gi
+
+// Splits plain text into text and link segments. Only http(s) hrefs are
+// produced, so a message can never smuggle in a javascript: URL.
+export function splitTextWithLinks(text = '') {
+  const parts = []
+  let cursor = 0
+  for (const match of text.matchAll(URL_RE)) {
+    if (match.index > cursor) parts.push({ type: 'text', value: text.slice(cursor, match.index) })
+    const raw = match[0]
+    parts.push({ type: 'link', value: raw, href: /^https?:\/\//i.test(raw) ? raw : `https://${raw}` })
+    cursor = match.index + raw.length
+  }
+  if (cursor < text.length) parts.push({ type: 'text', value: text.slice(cursor) })
+  return parts
+}
+
 // Sends a branded email through the send-email edge function (Gmail API).
 // Returns { ok, error } instead of throwing: callers post the message first
 // (the message is the source of truth) and surface a delivery failure

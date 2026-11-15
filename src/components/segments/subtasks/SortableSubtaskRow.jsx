@@ -2,7 +2,8 @@ import { useState } from 'react'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { format } from 'date-fns'
-import { Check, Link2, Lock, Pencil, Trash2, CalendarDays, ChevronRight } from 'lucide-react'
+import { Check, Link2, Lock, Pencil, Trash2, CalendarDays, ChevronRight, Upload } from 'lucide-react'
+import DeliverableChip, { StageBadge } from '../../media/DeliverableChip'
 import DragHandle from './DragHandle'
 import { getSubtaskAssigneeIds, isOverdue } from '../../../lib/subtasks'
 
@@ -53,7 +54,7 @@ function AssigneePopover({ taskId, assigneeIds, members, onAssign }) {
  */
 export default function SortableSubtaskRow({
   task, members, canEdit, isExec, profileId, blockedBy, highlighted, isDesktop, dragDisabled,
-  onToggle, onAssign, onDateChange, onRename, onDelete, onSubmitClick, onOpen,
+  onToggle, onAssign, onDateChange, onRename, onDelete, onSubmitClick, onOpen, deliverables = [],
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: task.id, disabled: dragDisabled })
@@ -108,6 +109,7 @@ export default function SortableSubtaskRow({
                 </span>
               )}
               {task.submit_url && <span className="inline-flex items-center gap-1 text-xs text-green-400"><Link2 size={11} aria-hidden="true" /> Submitted</span>}
+              {deliverables.map(d => <StageBadge key={d.id} stage={d.stage} />)}
               <AssigneeChips ids={assigneeIds} members={members} max={2} />
             </span>
           </span>
@@ -139,17 +141,24 @@ export default function SortableSubtaskRow({
         <span className={`flex-1 min-w-0 text-sm truncate ${task.completed ? 'text-gray-600 line-through' : 'text-gray-200'}`}>{task.title}</span>
       )}
 
-      {canSubmit && (task.submit_url ? (
+      {deliverables.length > 0 && (
+        <span className="flex items-center gap-1 flex-shrink min-w-0 overflow-hidden">
+          {deliverables.slice(0, 2).map(d => <DeliverableChip key={d.id} deliverable={d} />)}
+          {deliverables.length > 2 && <span className="text-xs text-gray-500">+{deliverables.length - 2}</span>}
+        </span>
+      )}
+      {task.submit_url && (
         <a href={task.submit_url} target="_blank" rel="noopener noreferrer" title={task.submit_url}
           className="flex items-center gap-1 text-xs text-green-400 hover:text-green-300 flex-shrink-0 rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400">
-          <Link2 size={12} aria-hidden="true" /> Submitted
+          <Link2 size={12} aria-hidden="true" /> Link
         </a>
-      ) : (
-        <button type="button" onClick={() => onSubmitClick(task)}
+      )}
+      {canSubmit && (
+        <button type="button" onClick={() => onSubmitClick(task)} title="Upload or attach a draft or final"
           className="text-xs text-gray-500 hover:text-brand-400 flex-shrink-0 transition-colors duration-fast flex items-center gap-1 rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400">
-          <Link2 size={12} aria-hidden="true" /> Submit
+          <Upload size={12} aria-hidden="true" /> {deliverables.length || task.submit_url ? 'Add' : 'Submit'}
         </button>
-      ))}
+      )}
 
       <input type="date" aria-label={`Due date for "${task.title}"`}
         className={`input sm:text-xs w-36 py-1 flex-shrink-0 ${overdue ? 'border-red-700 text-red-400' : task.due_date ? '' : 'text-gray-500'}`}

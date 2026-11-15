@@ -3,14 +3,17 @@ import { useAuth } from '../../context/AuthContext'
 import { useNotifications } from '../../context/NotificationsContext'
 import {
   LayoutDashboard, Film, CheckSquare, BarChart2,
-  Users, Settings, LogOut, Menu, X, UserCircle, ExternalLink, MessageSquare, Bell
+  Users, Settings, LogOut, Menu, X, UserCircle, ExternalLink, MessageSquare, Bell, FolderOpen
 } from 'lucide-react'
 import { useState } from 'react'
 import tnnLogo from '../../assets/tnn-logo.svg'
+import RemoteBrowserButton from './RemoteBrowserButton'
+import { isBrowserConfigured } from '../../lib/browser'
 
 const baseNavItems = [
   { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/segments',  icon: Film,            label: 'Segments' },
+  { to: '/media',     icon: FolderOpen,      label: 'Media' },
   { to: '/tasks',     icon: CheckSquare,     label: 'Tasks' },
   { to: '/chat',      icon: MessageSquare,   label: 'Chat' },
 ]
@@ -22,6 +25,8 @@ export default function Sidebar() {
   const { unreadCount } = useNotifications()
   const navigate = useNavigate()
   const [open, setOpen] = useState(false)
+
+  const isAdmin = profile?.role === 'admin'
 
   const handleSignOut = async () => { await signOut(); navigate('/login') }
 
@@ -70,6 +75,7 @@ export default function Sidebar() {
                 <Icon size={16} />{label}
               </NavLink>
             ))}
+            {isAdmin && isBrowserConfigured && <RemoteBrowserButton onOpened={() => setOpen(false)} />}
           </>
         )}
         <a

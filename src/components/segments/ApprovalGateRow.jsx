@@ -1,7 +1,8 @@
 import { format } from 'date-fns'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { ShieldCheck, Check, X, MessageSquare, Trash2, Pencil, CalendarDays } from 'lucide-react'
+import { ShieldCheck, Check, X, MessageSquare, Trash2, Pencil, CalendarDays, Paperclip } from 'lucide-react'
+import DeliverableChip from '../media/DeliverableChip'
 import DragHandle from './subtasks/DragHandle'
 import { gateApprovers, isOverdue } from '../../lib/subtasks'
 
@@ -58,7 +59,7 @@ export function ApproverStack({ approvers, members, max = 4 }) {
 // stays blocked until every approver has approved.
 export default function ApprovalGateRow({
   gate, members, profileId, isExec, canEdit, isDesktop = true, dragDisabled, highlighted,
-  onApprove, onRequestChanges, onComments, onEdit, onDelete,
+  onApprove, onRequestChanges, onComments, onEdit, onDelete, deliverables = [], onAttach,
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: gate.id, disabled: dragDisabled })
@@ -95,6 +96,20 @@ export default function ApprovalGateRow({
     </button>
   )
 
+  // Drafts/finals for approvers to watch, and a way to attach one for review.
+  const canAttach = Boolean(onAttach) && (canEdit || isExec)
+  const attachments = (deliverables.length > 0 || canAttach) && (
+    <span className="flex flex-wrap items-center gap-1.5 min-w-0">
+      {deliverables.map(d => <DeliverableChip key={d.id} deliverable={d} />)}
+      {canAttach && (
+        <button type="button" onClick={() => onAttach(gate)} aria-label={`Attach a draft or final to "${gate.title}"`}
+          className="flex items-center gap-1 text-xs text-gray-500 hover:text-brand-400 transition-colors duration-fast p-1 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400">
+          <Paperclip size={12} aria-hidden="true" />{deliverables.length ? '' : ' Attach draft'}
+        </button>
+      )}
+    </span>
+  )
+
   const statusBox = (
     <span role="img" aria-label={status.label} title={status.label}
       className={`w-6 h-6 md:w-5 md:h-5 rounded-md border flex items-center justify-center flex-shrink-0 ${status.box}`}>
@@ -128,6 +143,7 @@ export default function ApprovalGateRow({
           </button>
           {commentsButton}
         </div>
+        {attachments && <div className="mt-2 pl-14">{attachments}</div>}
         {decisionButtons && <div className="mt-2 pl-14 flex">{decisionButtons}</div>}
       </div>
     )
@@ -149,6 +165,7 @@ export default function ApprovalGateRow({
         )}
       </span>
 
+      {attachments}
       {commentsButton}
       {decisionButtons}
 

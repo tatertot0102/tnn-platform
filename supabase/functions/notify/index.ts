@@ -9,6 +9,7 @@
 //   approval_gates          UPDATE
 //   approval_gate_approvers INSERT
 //   approval_feedback       INSERT
+//   messages                INSERT
 //
 // The Send Reminder modal posts { type: 'REMINDER' } to it directly.
 
@@ -245,6 +246,30 @@ async function approvalFeedback(record: any) {
   })
 }
 
+// Emails everyone @mentioned in a chat message. mentioned_user_ids already
+// holds @everyone's expansion. Email-card messages, approval feedback and
+// announcements are skipped: each of those already sends its own email.
+async function messageMentioned(record: any) {
+  if (record.email_subject || record.approval_gate_id) return
+  const mentioned = (record.mentioned_user_ids ?? []).filter((id: string) => id && id !== record.sender_id)
+  if (!mentioned.length) return
+
+  const { data: channel } = await supabase
+    .from('channels').select('id, name, type').eq('id', record.channel_id).single()
+  if (!channel || channel.type === 'announcement') return
+
+  const [to, sender] = await Promise.all([emailsFor(mentioned), nameFor(record.sender_id)])
+  if (!to.length) return
+
+  const where = channel.type === 'dm' ? 'a direct message' : `#${channel.name}`
+  await sendTemplated(to, `${sender} mentioned you in ${where}`, {
+    kicker: 'Mention',
+    heading: `${sender} mentioned you in ${where}`,
+    quote: record.body,
+    cta: { label: 'Reply in chat', url: `${SITE_URL}/chat?channel=${channel.id}` },
+  })
+}
+
 async function reminder(record: any) {
   const to: string[] = record.emails ?? (record.user_id ? await emailsFor([record.user_id]) : [])
   if (!to.length) return
@@ -291,6 +316,8 @@ Deno.serve(async (req) => {
     else if (table === 'approval_gates' && type === 'UPDATE') await approvalDecided(old_record, record)
 
     else if (table === 'approval_feedback' && type === 'INSERT') await approvalFeedback(record)
+
+    else if (table === 'messages' && type === 'INSERT') await messageMentioned(record)
 
     return new Response(JSON.stringify({ ok: true }), {
       headers: { ...cors, 'Content-Type': 'application/json' },

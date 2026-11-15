@@ -119,7 +119,7 @@ function TableView({ segments, navigate }) {
               <td className="px-4 py-3"><StatusBadge value={seg.status} /></td>
               <td className="px-4 py-3 text-gray-400 text-xs">{seg.start_date ? format(new Date(seg.start_date), 'MMM d') : '—'}</td>
               <td className="px-4 py-3 text-gray-400 text-xs">{seg.due_date  ? format(new Date(seg.due_date),  'MMM d, yyyy') : '—'}</td>
-              <td className="px-4 py-3 text-gray-400">{seg.segment_roles?.length ?? 0}</td>
+              <td className="px-4 py-3 text-gray-400">{new Set(seg.segment_roles?.map(r => r.user_id)).size}</td>
             </tr>
           ))}
         </tbody>

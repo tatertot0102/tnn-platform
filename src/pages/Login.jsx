@@ -7,12 +7,10 @@ import { getAppUrl } from '../lib/siteUrl'
 import tnnLogo from '../assets/tnn-logo.svg'
 
 export default function Login() {
-  const { signIn, signUp } = useAuth()
+  const { signIn } = useAuth()
   const navigate = useNavigate()
-  const [mode, setMode] = useState('login') // 'login' | 'signup'
   const [email, setEmail]       = useState('')
   const [password, setPassword] = useState('')
-  const [fullName, setFullName] = useState('')
   const [error, setError]       = useState('')
   const [loading, setLoading]   = useState(false)
   const [success, setSuccess]   = useState('')
@@ -23,16 +21,9 @@ export default function Login() {
     setError('')
     setLoading(true)
 
-    if (mode === 'login') {
-      const { error } = await signIn(email, password)
-      if (error) setError(error.message)
-      else navigate('/dashboard')
-    } else {
-      if (!fullName.trim()) { setError('Please enter your name'); setLoading(false); return }
-      const { error } = await signUp(email, password, fullName)
-      if (error) setError(error.message)
-      else setSuccess('Check your email to confirm your account, then sign in.')
-    }
+    const { error } = await signIn(email, password)
+    if (error) setError(error.message)
+    else navigate('/dashboard')
     setLoading(false)
   }
 
@@ -74,43 +65,17 @@ export default function Login() {
         </div>
 
         <div className="card p-6">
-          {/* Tab toggle */}
-          <div className="flex bg-gray-800 rounded-lg p-1 mb-6">
-            {['login', 'signup'].map(m => (
-              <button
-                key={m}
-                onClick={() => { setMode(m); setError(''); setSuccess('') }}
-                className={`flex-1 py-1.5 rounded-md text-sm font-medium transition-colors capitalize ${
-                  mode === m ? 'bg-gray-700 text-white' : 'text-gray-500 hover:text-gray-300'
-                }`}
-              >
-                {m === 'login' ? 'Sign In' : 'Sign Up'}
-              </button>
-            ))}
-          </div>
+          <h2 className="text-base font-semibold text-white mb-6">Sign in</h2>
 
           {success ? (
             <div className="bg-green-900/40 border border-green-800 rounded-lg p-4 text-green-300 text-sm text-center">
               {success}
-              <button onClick={() => { setSuccess(''); setMode('login') }} className="block w-full mt-3 text-brand-400 hover:underline">
+              <button onClick={() => setSuccess('')} className="block w-full mt-3 text-brand-400 hover:underline">
                 Back to sign in
               </button>
             </div>
           ) : (
             <form onSubmit={handleSubmit} className="space-y-4">
-              {mode === 'signup' && (
-                <div>
-                  <label className="block text-xs font-medium text-gray-400 mb-1.5">Full Name</label>
-                  <input
-                    className="input"
-                    type="text"
-                    placeholder="Your name"
-                    value={fullName}
-                    onChange={e => setFullName(e.target.value)}
-                    required
-                  />
-                </div>
-              )}
               <div>
                 <label className="block text-xs font-medium text-gray-400 mb-1.5">Email</label>
                 <input
@@ -125,16 +90,14 @@ export default function Login() {
               <div>
                 <div className="flex items-center justify-between mb-1.5">
                   <label className="block text-xs font-medium text-gray-400">Password</label>
-                  {mode === 'login' && (
-                    <button
-                      type="button"
-                      onClick={handleForgotPassword}
-                      disabled={sendingReset}
-                      className="text-xs text-brand-400 hover:underline disabled:opacity-50"
-                    >
-                      {sendingReset ? 'Sending...' : 'Forgot Password?'}
-                    </button>
-                  )}
+                  <button
+                    type="button"
+                    onClick={handleForgotPassword}
+                    disabled={sendingReset}
+                    className="text-xs text-brand-400 hover:underline disabled:opacity-50"
+                  >
+                    {sendingReset ? 'Sending...' : 'Forgot Password?'}
+                  </button>
                 </div>
                 <input
                   className="input"
@@ -155,13 +118,16 @@ export default function Login() {
 
               <button type="submit" disabled={loading} className="btn-primary w-full flex items-center justify-center gap-2">
                 {loading && <Spinner size={4} />}
-                {mode === 'login' ? 'Sign In' : 'Create Account'}
+                Sign In
               </button>
             </form>
           )}
         </div>
 
-        <p className="text-center text-gray-600 text-xs mt-4">
+        <p className="text-center text-gray-500 text-xs mt-4">
+          Need an account? Ask Zane to invite you.
+        </p>
+        <p className="text-center text-gray-600 text-xs mt-1">
           Managed by Zane Wolf • Internal use only!
         </p>
       </div>

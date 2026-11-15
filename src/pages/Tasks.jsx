@@ -2,14 +2,14 @@ import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
-import { PriorityBadge, DeptBadge } from '../components/ui/Badge'
+import { DeptBadge } from '../components/ui/Badge'
 import PageHeader from '../components/ui/PageHeader'
 import Modal from '../components/ui/Modal'
 import Spinner from '../components/ui/Spinner'
 import ErrorState from '../components/ui/ErrorState'
 import PeopleDropdown from '../components/ui/PeopleDropdown'
 import { useToast } from '../context/ToastContext'
-import { PRIORITIES, STATUSES, DEPARTMENTS } from '../lib/constants'
+import { STATUSES, DEPARTMENTS } from '../lib/constants'
 import { format, isPast, isToday } from 'date-fns'
 
 import {
@@ -23,22 +23,6 @@ function normalizeExternalUrl(url) {
   if (!trimmed) return null
   if (/^https?:\/\//i.test(trimmed)) return trimmed
   return `https://${trimmed}`
-}
-
-const PRIORITY_RING = {
-  'ultra-high': 'border-red-500 hover:border-red-400',
-  'high': 'border-orange-500 hover:border-orange-400',
-  'medium': 'border-yellow-500 hover:border-yellow-400',
-  'low': 'border-green-500 hover:border-green-400',
-  'tbd': 'border-gray-600 hover:border-gray-400',
-}
-
-const PRIORITY_STRIPE = {
-  'ultra-high': 'bg-red-500',
-  'high': 'bg-orange-500',
-  'medium': 'bg-yellow-500',
-  'low': 'bg-green-500',
-  'tbd': 'bg-gray-600',
 }
 
 function dueSection(dueDate) {
@@ -60,7 +44,6 @@ const SECTION_ORDER = ['overdue', 'today', 'upcoming', 'no-date']
 function TaskForm({ onSave, initial, onCancel, members, topLevelTasks, isExec, defaultParentId = null }) {
   const [form, setForm] = useState(initial ?? {
     title: '',
-    priority: 'medium',
     status: 'not-started',
     department: '',
     due_date: '',
@@ -112,14 +95,6 @@ function TaskForm({ onSave, initial, onCancel, members, topLevelTasks, isExec, d
 
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <label className="block text-xs font-medium text-gray-400 mb-1.5">Priority</label>
-          <select className="input" value={form.priority} onChange={e => set('priority', e.target.value)}>
-            {Object.entries(PRIORITIES).map(([v, p]) => (
-              <option key={v} value={v}>{p.label}</option>
-            ))}
-          </select>
-        </div>
-        <div>
           <label className="block text-xs font-medium text-gray-400 mb-1.5">Status</label>
           <select className="input" value={form.status} onChange={e => set('status', e.target.value)}>
             {Object.entries(STATUSES).map(([v, s]) => (
@@ -127,9 +102,6 @@ function TaskForm({ onSave, initial, onCancel, members, topLevelTasks, isExec, d
             ))}
           </select>
         </div>
-      </div>
-
-      <div className="grid grid-cols-2 gap-4">
         <div>
           <label className="block text-xs font-medium text-gray-400 mb-1.5">Department</label>
           <select className="input" value={form.department} onChange={e => set('department', e.target.value)}>
@@ -254,7 +226,7 @@ function TaskRow({ task, members, canEdit, isExec, isSubtask, onToggle, onEdit, 
       <button
         onClick={() => canEdit && onToggle(task)}
         className={`rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-all ${isSubtask ? 'w-4 h-4' : 'w-5 h-5'} ${
-          task.status === 'done' ? 'bg-brand-500 border-brand-500' : `${PRIORITY_RING[task.priority] ?? PRIORITY_RING.tbd}`
+          task.status === 'done' ? 'bg-brand-500 border-brand-500' : 'border-gray-600 hover:border-gray-400'
         } ${canEdit ? 'cursor-pointer' : 'cursor-default'}`}
       >
         {task.status === 'done' && <Check size={isSubtask ? 9 : 11} className="text-white" />}
@@ -289,7 +261,6 @@ function TaskRow({ task, members, canEdit, isExec, isSubtask, onToggle, onEdit, 
       </div>
 
       <div className="flex items-center gap-2 flex-shrink-0">
-        {!isSubtask && <PriorityBadge value={task.priority} />}
         {!isSubtask && (
           <span className="hidden sm:flex items-center gap-1 text-xs text-gray-600">
             <Inbox size={11} /> Inbox
@@ -424,7 +395,6 @@ export default function Tasks() {
     if (!subtaskTitle.trim()) return
     const { data, error } = await supabase.from('tasks').insert({
       title: subtaskTitle.trim(),
-      priority: parent.priority,
       status: 'not-started',
       department: parent.department,
       assignee_ids: parent.assignee_ids ?? [],
@@ -523,7 +493,6 @@ export default function Tasks() {
                         key={task.id}
                         className={`relative overflow-hidden card transition-shadow hover:shadow-lg hover:shadow-black/20 hover:border-gray-700`}
                       >
-                        <div className={`absolute left-0 top-0 bottom-0 w-1 ${PRIORITY_STRIPE[task.priority] ?? PRIORITY_STRIPE.tbd}`} />
                         <TaskRow
                           task={task} members={members} canEdit={canEdit} isExec={isExec}
                           onToggle={toggleDone} onEdit={setEditing} onLink={setLinkEditing} onDelete={deleteTask}

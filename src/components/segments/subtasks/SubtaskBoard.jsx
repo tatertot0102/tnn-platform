@@ -9,7 +9,8 @@ import StaticSubtaskRow from './StaticSubtaskRow'
 import MilestoneBlock, { AddItemBar } from './MilestoneBlock'
 import MilestoneDropZone from './MilestoneDropZone'
 import SubtaskActionsSheet from './SubtaskActionsSheet'
-import SubmitUrlModal from './SubmitUrlModal'
+import SubmitDeliverableModal from '../../media/SubmitDeliverableModal'
+import { useDeliverables } from '../../../lib/deliverables'
 import ApprovalGateRow from '../ApprovalGateRow'
 import ApprovalGateModal from '../ApprovalGateModal'
 import ApprovalFeedbackModal from '../ApprovalFeedbackModal'
@@ -39,7 +40,9 @@ export default function SubtaskBoard({ work, highlightId, highlightGateId, filte
   const [overId, setOverId] = useState(null)
   const [gateModal, setGateModal] = useState(null)       // { gate, milestoneId }
   const [feedbackModal, setFeedbackModal] = useState(null) // { gateId, kind }
-  const [submitTask, setSubmitTask] = useState(null)
+  const [submitTarget, setSubmitTarget] = useState(null) // { type: 'subtask'|'gate', item }
+  const deliverables = useDeliverables(segment?.id)
+  const setSubmitTask = task => setSubmitTarget({ type: 'subtask', item: task })
   const [sheetTaskId, setSheetTaskId] = useState(null)
   const [newMilestone, setNewMilestone] = useState('')
 
@@ -111,6 +114,7 @@ export default function SubtaskBoard({ work, highlightId, highlightGateId, filte
     <ApprovalGateRow key={row.id} gate={row} members={members} profileId={profileId}
       isExec={isExec} canEdit={canEdit} isDesktop={isDesktop} dragDisabled={dragDisabled}
       highlighted={row.id === highlightGateId}
+      deliverables={deliverables.forGate(row.id)} onAttach={gate => setSubmitTarget({ type: 'gate', item: gate })}
       onApprove={gate => work.submitGateFeedback(gate, 'approved', '')}
       onRequestChanges={gate => setFeedbackModal({ gateId: gate.id, kind: 'changes_requested' })}
       onComments={gate => setFeedbackModal({ gateId: gate.id, kind: 'comment' })}
@@ -119,7 +123,7 @@ export default function SubtaskBoard({ work, highlightId, highlightGateId, filte
   ) : (
     <SortableSubtaskRow key={row.id} task={row} members={segmentMembers} blockedBy={row.blockedBy}
       canEdit={canEdit} isExec={isExec} profileId={profileId} isDesktop={isDesktop} dragDisabled={dragDisabled}
-      highlighted={row.id === highlightId}
+      highlighted={row.id === highlightId} deliverables={deliverables.forSubtask(row.id)}
       onToggle={work.toggleSubtask} onAssign={work.assignSubtask} onDateChange={work.setSubtaskDate}
       onRename={work.renameSubtask} onDelete={work.deleteSubtask} onSubmitClick={setSubmitTask}
       onOpen={task => setSheetTaskId(task.id)} />
@@ -188,8 +192,12 @@ export default function SubtaskBoard({ work, highlightId, highlightGateId, filte
           onSubmitClick={task => { setSheetTaskId(null); setSubmitTask(task) }} />
       )}
 
-      {submitTask && (
-        <SubmitUrlModal task={submitTask} onClose={() => setSubmitTask(null)} onSave={work.setSubmitUrl} />
+      {submitTarget && segment && (
+        <SubmitDeliverableModal segment={segment}
+          target={{ type: submitTarget.type, id: submitTarget.item.id, title: submitTarget.item.title, submit_url: submitTarget.item.submit_url }}
+          attached={submitTarget.type === 'subtask' ? deliverables.forSubtask(submitTarget.item.id) : deliverables.forGate(submitTarget.item.id)}
+          onChanged={deliverables.refresh} onClose={() => setSubmitTarget(null)}
+          onSaveLink={submitTarget.type === 'subtask' ? work.setSubmitUrl : undefined} />
       )}
 
       {gateModal && (

@@ -23,6 +23,8 @@ const Settings        = lazy(() => import('./pages/Settings'))
 const Notifications   = lazy(() => import('./pages/Notifications'))
 const Profile         = lazy(() => import('./pages/Profile'))
 const Chat            = lazy(() => import('./pages/Chat'))
+const SharedMedia     = lazy(() => import('./pages/SharedMedia'))
+const Media           = lazy(() => import('./pages/Media'))
 
 const FullScreenSpinner = () => (
   <div className="min-h-dvh flex items-center justify-center bg-gray-950"><Spinner size={8} /></div>
@@ -48,12 +50,14 @@ function AppRoutes() {
   return (
     <Routes>
       <Route path="/login" element={user ? <Navigate to="/dashboard" replace /> : <Suspense fallback={<FullScreenSpinner />}><Login /></Suspense>} />
+      <Route path="/s/:token" element={<Suspense fallback={<FullScreenSpinner />}><SharedMedia /></Suspense>} />
       <Route path="/reset-password" element={<Suspense fallback={<FullScreenSpinner />}><ResetPassword /></Suspense>} />
       <Route element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
         <Route path="/dashboard"     element={<Dashboard />} />
         <Route path="/segments"      element={<Segments />} />
         <Route path="/segments/:id"  element={<SegmentDetail />} />
         <Route path="/segments/:id/subtasks" element={<SegmentSubtasks />} />
+        <Route path="/media"         element={<Media />} />
         <Route path="/tasks"         element={<Tasks />} />
         <Route path="/chat"          element={<Chat />} />
         <Route path="/notifications" element={<Notifications />} />
